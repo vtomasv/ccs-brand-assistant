@@ -2561,8 +2561,8 @@ function renderPubEditor(pub) {
   html += '</div>'; // fin panel texto
 
   // ── PANEL IMAGEN ──
-  html += '<div style="background:var(--bg-card);border:1px solid rgba(168,85,247,0.4);border-radius:10px;padding:12px">';
-  html += '<div style="font-size:12px;font-weight:700;color:#a855f7;margin-bottom:8px">🖼️ Imagen del post</div>';
+  html += '<div style="background:#FFFFFF;border:1px solid rgba(13,61,166,0.2);border-radius:10px;padding:12px">';
+  html += '<div style="font-size:12px;font-weight:700;color:var(--ccs-azul);margin-bottom:8px">🖼️ Imagen del post</div>';
 
   // Estado del proveedor de imagen
   html += '<div id="imageProviderStatus" style="font-size:10px;color:var(--text-muted);margin-bottom:8px;min-height:16px">';
@@ -2570,11 +2570,19 @@ function renderPubEditor(pub) {
 
   // Selector de modelo de imagen
   html += '<div style="margin-bottom:8px">';
-  html += '<label style="font-size:11px;color:var(--text-muted)">Modelo de imagen</label>';
+  html += '<label style="font-size:11px;font-weight:600;color:var(--ccs-azul)">Modelo de imagen</label>';
   html += '<select id="editImageModel" style="font-size:12px" onchange="_onImageModelChange(this.value)">';
-  html += '<option value="embedded">🤖 Motor IA Embebido (LCM Dreamshaper) — Windows/macOS/Linux</option>';
-  html += '<option value="x/z-image-turbo">🦎 Ollama: z-image-turbo — solo macOS/Linux</option>';
-  html += '<option value="x/flux2-klein">🦎 Ollama: flux2-klein — solo macOS/Linux</option>';
+  // ── Modelos del motor embebido (Diffusers/LCM) — funcionan en Windows, macOS y Linux ──
+  html += '<optgroup label="🤖 Motor IA Embebido (Windows/macOS/Linux)">';
+  html += '<option value="diffusers:SimianLuo/LCM_Dreamshaper_v7">⭐ LCM Dreamshaper v7 — rápido, 2-4 pasos (recomendado)</option>';
+  html += '<option value="diffusers:stabilityai/sd-turbo">SD Turbo — ultra-rápido, 1 paso, fotorrealista</option>';
+  html += '<option value="diffusers:stabilityai/sdxl-turbo">SDXL Turbo — alta calidad, más lento en CPU</option>';
+  html += '</optgroup>';
+  // ── Modelos Ollama — solo macOS/Linux ──
+  html += '<optgroup label="🦎 Ollama (solo macOS/Linux)">';
+  html += '<option value="ollama:x/z-image-turbo">z-image-turbo — Ollama</option>';
+  html += '<option value="ollama:x/flux2-klein">flux2-klein — Ollama</option>';
+  html += '</optgroup>';
   html += '</select>';
   html += '</div>';
 
@@ -2722,19 +2730,53 @@ function generateTextWithAI(pubId) {
  * Llamado desde el botón del panel de imagen.
  */
 function generateImageWithAI(pubId) {
-  var imageModel = (document.getElementById('editImageModel') || {}).value || 'embedded';
+  var rawModel = (document.getElementById('editImageModel') || {}).value || 'diffusers:SimianLuo/LCM_Dreamshaper_v7';
   // Leer prompt desde el campo inline del panel de imagen
   var promptEl = document.getElementById('editPubImagePromptInline') || document.getElementById('editPubImagePrompt');
   var imagePrompt = promptEl ? promptEl.value.trim() : '';
 
-  var btn = document.getElementById('btnGenerateImage');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generando imagen...'; }
+  if (!imagePrompt) {
+    showNotification('Escribe un prompt de imagen antes de generar', 'error');
+    return;
+  }
 
-  var payload = {
-    target: 'image',
-    image_model: imageModel,
-    image_prompt: imagePrompt || undefined,
+  var btn = document.getElementById('btnGenerateImage');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Generando...'; }
+
+  // Parsear el valor del combo: formato "tipo:modelo_id"
+  // Ejemplos: "diffusers:SimianLuo/LCM_Dreamshaper_v7", "ollama:x/z-image-turbo"
+  var modelType = 'diffusers';
+  var modelId = 'SimianLuo/LCM_Dreamshaper_v7';
+  var colonIdx = rawModel.indexOf(':');
+  if (colonIdx !== -1) {
+    modelType = rawModel.substring(0, colonIdx);
+    modelId = rawModel.substring(colonIdx + 1);
+  }
+
+  // Determinar pasos recomendados según el modelo
+  var stepsMap = {
+    'SimianLuo/LCM_Dreamshaper_v7': 4,
+    'stabilityai/sd-turbo': 1,
+    'stabilityai/sdxl-turbo': 1,
   };
+  var diffusionSteps = stepsMap[modelId] || 4;
+
+  // Construir payload según el tipo de modelo
+  var payload = {
+    image_prompt: imagePrompt,
+  };
+
+  if (modelType === 'diffusers') {
+    // Motor embebido: enviar diffusion_model y diffusion_steps
+    payload.diffusion_model = modelId;
+    payload.diffusion_steps = diffusionSteps;
+    payload.model = 'embedded';  // Indica al backend que use el motor embebido
+    showNotification('🤖 Generando con ' + modelId.split('/').pop() + '... (puede tardar 1-5 min la primera vez)', 'info');
+  } else {
+    // Ollama: enviar model (nombre del modelo Ollama)
+    payload.model = modelId;
+    showNotification('🦎 Generando con Ollama: ' + modelId + '...', 'info');
+  }
 
   fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/generate-image'), {
     method: 'POST',
@@ -2743,7 +2785,7 @@ function generateImageWithAI(pubId) {
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (btn) { btn.disabled = false; btn.textContent = '🖼️ Generar imagen con IA'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '🖼️ Generar imagen con IA'; }
       if (data.image_url) {
         var container = document.getElementById('pubPreviewImageContainer');
         if (container) {
@@ -2752,14 +2794,15 @@ function generateImageWithAI(pubId) {
         if (data.warning) {
           showNotification('⚠️ ' + data.warning, 'info');
         } else {
-          showNotification('✅ Imagen generada correctamente', 'success');
+          var methodLabel = data.generation_method || 'IA';
+          showNotification('✅ Imagen generada con ' + methodLabel, 'success');
         }
       } else {
-        showNotification('Error: ' + (data.detail || 'No se pudo generar la imagen'), 'error');
+        showNotification('Error: ' + (data.detail || data.error || 'No se pudo generar la imagen'), 'error');
       }
     })
     .catch(function(e) {
-      if (btn) { btn.disabled = false; btn.textContent = '🖼️ Generar imagen con IA'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '🖼️ Generar imagen con IA'; }
       showNotification('Error al generar imagen: ' + e.message, 'error');
     });
 }
@@ -2774,7 +2817,7 @@ function generateWithAI(pubId) {
   var btn = document.getElementById('btnGenerate');
 
   var target = targetEl ? targetEl.value : 'text';
-  var imageModel = imageModelEl ? imageModelEl.value : 'embedded';
+  var rawImageModel = imageModelEl ? imageModelEl.value : 'diffusers:SimianLuo/LCM_Dreamshaper_v7';
   var textModel = textModelEl ? textModelEl.value : (window._activeTextModel || '');
   var instruction = instrEl ? instrEl.value.trim() : '';
   var language = langEl ? langEl.value : 'es';
@@ -2790,12 +2833,36 @@ function generateWithAI(pubId) {
       if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
       return;
     }
-    showNotification('Generando imagen con ' + imageModel + '... (puede tardar 1-2 min si se descarga el modelo)', 'info');
+
+    // Parsear el valor del combo: formato "tipo:modelo_id"
+    var imgModelType = 'diffusers';
+    var imgModelId = 'SimianLuo/LCM_Dreamshaper_v7';
+    var imgColonIdx = rawImageModel.indexOf(':');
+    if (imgColonIdx !== -1) {
+      imgModelType = rawImageModel.substring(0, imgColonIdx);
+      imgModelId = rawImageModel.substring(imgColonIdx + 1);
+    }
+    var imgStepsMap = {
+      'SimianLuo/LCM_Dreamshaper_v7': 4,
+      'stabilityai/sd-turbo': 1,
+      'stabilityai/sdxl-turbo': 1,
+    };
+    var imgSteps = imgStepsMap[imgModelId] || 4;
+    var imgPayload = {image_prompt: promptText, instruction: instruction};
+    if (imgModelType === 'diffusers') {
+      imgPayload.diffusion_model = imgModelId;
+      imgPayload.diffusion_steps = imgSteps;
+      imgPayload.model = 'embedded';
+    } else {
+      imgPayload.model = imgModelId;
+    }
+
+    showNotification('Generando imagen con ' + imgModelId.split('/').pop() + '... (puede tardar 1-2 min si se descarga el modelo)', 'info');
     var url = apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/generate-image');
     fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({image_prompt: promptText, model: imageModel, instruction: instruction}),
+      body: JSON.stringify(imgPayload),
     })
       .then(function(r) { return r.json(); })
       .then(function(data) {
@@ -2972,21 +3039,18 @@ function _loadImageProviderStatus() {
 
       html += '</div>';
 
-      // Segunda línea: modelos disponibles si es motor embebido
-      if (effective === 'embedded_diffusers' && embeddedInfo.available_models && embeddedInfo.available_models.length > 0) {
-        html += '<div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
-        html += '<span style="font-size:10px;color:var(--text-muted)">Modelo:</span>';
-        html += '<select id="diffusionModelSelect" style="font-size:10px;padding:2px 4px" onchange="_changeDiffusionModel(this.value)">';
-        var models = embeddedInfo.available_models;
-        var currentModel = embeddedInfo.model || '';
-        for (var mi = 0; mi < models.length; mi++) {
-          var m = models[mi];
-          html += '<option value="' + m.id + '"' + (m.id === currentModel ? ' selected' : '') + '>';
-          html += m.name + ' (' + m.speed + ', ' + m.ram_gb + 'GB RAM)';
-          html += '</option>';
+      // Sincronizar el combo principal (editImageModel) con el modelo activo del servidor
+      var mainCombo = document.getElementById('editImageModel');
+      if (mainCombo && effective === 'embedded_diffusers' && embeddedInfo.model) {
+        var expectedValue = 'diffusers:' + embeddedInfo.model;
+        // Solo actualizar si la opción existe en el combo
+        for (var oi = 0; oi < mainCombo.options.length; oi++) {
+          if (mainCombo.options[oi].value === expectedValue) {
+            mainCombo.value = expectedValue;
+            _onImageModelChange(expectedValue);
+            break;
+          }
         }
-        html += '</select>';
-        html += '</div>';
       }
 
       // Mostrar links de instalación si solo placeholder está disponible
@@ -3126,12 +3190,21 @@ function _onImageModelChange(model) {
   var statusEl = document.getElementById('imageProviderStatus');
   if (!statusEl) return;
 
-  if (model === 'embedded') {
-    statusEl.innerHTML = '🤖 <strong>Motor IA Embebido</strong> — Genera imágenes localmente. Funciona en <strong>Windows, macOS y Linux</strong>. La primera vez descarga el modelo (~2GB).';
-  } else if (model.startsWith('x/') || model.startsWith('ollama')) {
-    statusEl.innerHTML = '🦙 <strong>Ollama</strong> — Generación de imágenes vía Ollama. Disponible en <strong>macOS y Linux</strong>. En Windows puede no funcionar.';
+  // Parsear formato "tipo:modelo_id"
+  var modelType = model.indexOf(':') !== -1 ? model.split(':')[0] : 'diffusers';
+  var modelId   = model.indexOf(':') !== -1 ? model.substring(model.indexOf(':') + 1) : model;
+
+  if (modelType === 'diffusers') {
+    var descMap = {
+      'SimianLuo/LCM_Dreamshaper_v7': '🤖 <strong>LCM Dreamshaper v7</strong> — Motor IA Embebido. Funciona en <strong>Windows, macOS y Linux</strong>. Genera en 2-4 pasos (~2-8 min en CPU). La primera vez descarga ~2 GB.',
+      'stabilityai/sd-turbo': '🤖 <strong>SD Turbo</strong> — Motor IA Embebido. Ultra-rápido, 1 paso, imágenes fotorrealistas. Descarga ~1.9 GB la primera vez.',
+      'stabilityai/sdxl-turbo': '🤖 <strong>SDXL Turbo</strong> — Motor IA Embebido. Alta calidad, más lento en CPU. Requiere ~8 GB RAM. Descarga ~6.9 GB la primera vez.',
+    };
+    statusEl.innerHTML = descMap[modelId] || '🤖 <strong>Motor IA Embebido</strong> — ' + modelId;
+  } else if (modelType === 'ollama') {
+    statusEl.innerHTML = '🦎 <strong>Ollama</strong> — Generación de imágenes vía Ollama. Disponible en <strong>macOS y Linux</strong>. En Windows puede no funcionar. Modelo: <code>' + modelId + '</code>';
   } else {
-    statusEl.innerHTML = '🖼️ Modelo personalizado: ' + model;
+    statusEl.innerHTML = '🖼️ Modelo: ' + model;
   }
 }
 

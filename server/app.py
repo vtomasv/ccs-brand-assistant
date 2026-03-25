@@ -2077,8 +2077,12 @@ async def regenerate_publication(campaign_id: str, pub_id: str,
 
 class GenerateImageRequest(BaseModel):
     image_prompt: str
-    model: str = "x/z-image-turbo"
+    model: str = "x/z-image-turbo"          # Modelo Ollama para generación vía Ollama
     instruction: Optional[str] = None
+    # Modelo del motor embebido (Diffusers/LCM) seleccionado desde el frontend.
+    # Si se envía, tiene prioridad sobre el valor en config.json.
+    diffusion_model: Optional[str] = None
+    diffusion_steps: Optional[int] = None   # Pasos de inferencia (None = usar config)
 
 
 def _ensure_model_available(model: str) -> dict:
@@ -2134,6 +2138,9 @@ def _get_image_provider_config() -> dict:
         "a1111_url": cfg.get("a1111_url", A1111_URL),
         "comfyui_url": cfg.get("comfyui_url", COMFYUI_URL),
         "timeout": int(cfg.get("image_timeout", IMAGE_TIMEOUT)),
+        # Modelo y pasos del motor embebido (Diffusers/LCM)
+        "diffusion_model": cfg.get("diffusion_model", DEFAULT_DIFFUSION_MODEL),
+        "diffusion_steps": int(cfg.get("diffusion_steps", 4)),
     }
 
 
@@ -2403,8 +2410,20 @@ async def generate_publication_image(campaign_id: str, pub_id: str, req: Generat
     # Funciona en Windows, macOS y Linux sin dependencias externas.
     # El modelo se descarga automáticamente la primera vez (~2 GB).
     # -----------------------------------------------------------------------
-    diffusion_model = img_cfg.get("diffusion_model", DEFAULT_DIFFUSION_MODEL)
-    diffusion_steps = int(img_cfg.get("diffusion_steps", 4))
+    # Prioridad: 1) modelo enviado desde el frontend (req.diffusion_model)
+    #            2) modelo guardado en config.json
+    #            3) DEFAULT_DIFFUSION_MODEL (SimianLuo/LCM_Dreamshaper_v7)
+    diffusion_model = (
+        req.diffusion_model
+        or img_cfg.get("diffusion_model")
+        or DEFAULT_DIFFUSION_MODEL
+    )
+    diffusion_steps = int(
+        req.diffusion_steps
+        if req.diffusion_steps is not None
+        else img_cfg.get("diffusion_steps", 4)
+    )
+    logger.info(f"[ImageEngine] Modelo de diffusion seleccionado: {diffusion_model} ({diffusion_steps} pasos)")
 
     if IMAGE_ENGINE_AVAILABLE and provider in ("auto", "embedded", "diffusers") and not image_b64:
         try:
