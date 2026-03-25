@@ -1,0 +1,3553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CCS Brand Assistant — Cámara de Comercio de Santiago</title>
+  <style>
+    /* ===== FUENTES CCS ===== */
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('fonts/DMSans-Regular.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('fonts/DMSans-Medium.ttf') format('truetype');
+      font-weight: 500;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('fonts/DMSans-SemiBold.ttf') format('truetype');
+      font-weight: 600;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('fonts/DMSans-Bold.ttf') format('truetype');
+      font-weight: 700;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('fonts/DMSans-ExtraBold.ttf') format('truetype');
+      font-weight: 800;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'DM Sans';
+      src: url('fonts/DMSans-Light.ttf') format('truetype');
+      font-weight: 300;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'FeelingPassionate';
+      src: url('fonts/FeelingPassionate.otf') format('opentype');
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Brushwell';
+      src: url('fonts/Brushwell.otf') format('opentype');
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      /* === Paleta CCS 2025 === */
+      /* Primarios */
+      --ccs-azul-oscuro:   #0D3DA6;
+      --ccs-verde:         #3DAE2B;
+      /* Secundarios */
+      --ccs-azul:          #0D56CA;
+      --ccs-celeste:       #3A6DDE;
+      --ccs-verde-brillante: #0DD700;
+
+      /* === Variables de UI (tema claro) === */
+      --bg-base:    #F7F8FA;
+      --bg-card:    #FFFFFF;
+      --bg-hover:   #EEF2F8;
+      --primary:    #0D3DA6;
+      --primary-h:  #0D56CA;
+      --accent:     #3A6DDE;
+      --success:    #3DAE2B;
+      --success-h:  #0DD700;
+      --warning:    #f59e0b;
+      --danger:     #dc2626;
+      --text-main:  #1A2340;
+      --text-muted: #6B7A99;
+      --border:     #D6DFF0;
+      --border-focus: #0D56CA;
+      --radius:     10px;
+      --sidebar-w:  252px;
+
+      /* === Sombras === */
+      --shadow-sm:  0 1px 3px rgba(13,61,166,0.08);
+      --shadow-md:  0 4px 12px rgba(13,61,166,0.10);
+    }
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-main);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    button { cursor: pointer; border: none; outline: none; font-family: inherit; }
+    input, select, textarea {
+      font-family: inherit;
+      font-size: 14px;
+      background: #FFFFFF;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(13,86,202,0.12);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; letter-spacing: 0.02em; }
+
+    /* ===== LAYOUT ===== */
+    .app-layout { display: flex; min-height: 100vh; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: #FFFFFF;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+      overflow-y: auto;
+      box-shadow: var(--shadow-sm);
+    }
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 16px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+    /* Logo CCS discreto en el sidebar */
+    .sidebar-logo-img {
+      height: 36px;
+      width: auto;
+      max-width: 120px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .sidebar-logo-text { font-size: 12px; font-weight: 700; color: var(--text-main); line-height: 1.3; }
+    .sidebar-logo-sub { font-size: 10px; color: var(--text-muted); font-weight: 400; }
+
+    .sidebar-section { padding: 12px 8px 4px; }
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0 8px 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 2px;
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--primary); }
+    .nav-item.active {
+      background: linear-gradient(135deg, var(--ccs-azul-oscuro), var(--ccs-azul));
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(13,61,166,0.25);
+    }
+    .nav-item .nav-icon { width: 18px; text-align: center; font-size: 14px; }
+    .nav-badge {
+      margin-left: auto;
+      background: var(--ccs-verde);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 20px;
+    }
+
+    .sidebar-brand-selector {
+      padding: 12px 8px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+    }
+    .brand-select-label { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; padding: 0 4px; }
+
+    /* ===== MAIN CONTENT ===== */
+    .main-content {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .topbar {
+      background: #FFFFFF;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+    .topbar-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--ccs-azul-oscuro);
+      letter-spacing: -0.01em;
+    }
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+    .page { padding: 24px; display: none; }
+    .page.active { display: block; }
+
+    /* ===== CARDS ===== */
+    .card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: var(--shadow-md); }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 15px; font-weight: 700; color: var(--ccs-azul-oscuro); }
+    .card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.18s;
+      letter-spacing: 0.01em;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--ccs-azul-oscuro), var(--ccs-azul));
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(13,61,166,0.25);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--ccs-azul), var(--ccs-celeste));
+      box-shadow: 0 4px 12px rgba(13,61,166,0.35);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #FFFFFF;
+      color: var(--ccs-azul-oscuro);
+      border: 1.5px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--ccs-celeste);
+      color: var(--ccs-azul);
+    }
+    .btn-success {
+      background: linear-gradient(135deg, var(--ccs-verde), var(--ccs-verde-brillante));
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(61,174,43,0.25);
+    }
+    .btn-success:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-accent {
+      background: var(--ccs-celeste);
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(58,109,222,0.25);
+    }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-lg { padding: 12px 28px; font-size: 15px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+    /* ===== GRID ===== */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+    /* ===== STAT CARDS ===== */
+    .stat-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      box-shadow: var(--shadow-sm);
+      border-left: 4px solid var(--ccs-azul-oscuro);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .stat-card:nth-child(2) { border-left-color: var(--ccs-verde); }
+    .stat-card:nth-child(3) { border-left-color: var(--ccs-azul); }
+    .stat-card:nth-child(4) { border-left-color: var(--ccs-celeste); }
+    .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+    .stat-value { font-size: 30px; font-weight: 800; margin: 4px 0; color: var(--ccs-azul-oscuro); }
+    .stat-sub { font-size: 11px; color: var(--text-muted); }
+
+    /* ===== BRAND CARDS ===== */
+    .brand-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.18s;
+      box-shadow: var(--shadow-sm);
+    }
+    .brand-card:hover {
+      border-color: var(--ccs-azul);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .brand-card.selected {
+      border-color: var(--ccs-azul-oscuro);
+      background: rgba(13,61,166,0.04);
+      box-shadow: 0 0 0 2px rgba(13,61,166,0.15);
+    }
+    .brand-avatar {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--ccs-azul-oscuro), var(--ccs-celeste));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .brand-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; color: var(--text-main); }
+    .brand-sector { font-size: 11px; color: var(--text-muted); }
+    .brand-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-top: 8px;
+    }
+    .status-pending { background: rgba(245,158,11,0.12); color: #b45309; }
+    .status-analyzing { background: rgba(58,109,222,0.12); color: var(--ccs-azul); }
+    .status-interviewing { background: rgba(13,61,166,0.12); color: var(--ccs-azul-oscuro); }
+    .status-complete { background: rgba(61,174,43,0.12); color: #166534; }
+    .status-error { background: rgba(220,38,38,0.12); color: var(--danger); }
+
+    /* ===== FORMS ===== */
+    .form-group { margin-bottom: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ===== MODAL ===== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(13,29,66,0.45);
+      backdrop-filter: blur(3px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 560px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(13,61,166,0.18);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+    }
+    .modal-title { font-size: 17px; font-weight: 700; color: var(--ccs-azul-oscuro); }
+    .modal-close {
+      background: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .modal-close:hover { color: var(--danger); background: rgba(220,38,38,0.08); }
+
+    /* ===== CHAT ===== */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 500px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .chat-message {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .chat-message.user {
+      background: linear-gradient(135deg, var(--ccs-azul-oscuro), var(--ccs-azul));
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-message.assistant {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      box-shadow: var(--shadow-sm);
+    }
+    .chat-message.system-msg {
+      background: rgba(58,109,222,0.08);
+      border: 1px solid rgba(58,109,222,0.25);
+      color: var(--ccs-azul);
+      align-self: center;
+      text-align: center;
+      font-size: 12px;
+      max-width: 90%;
+    }
+    .chat-input-area {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+    .chat-input { flex: 1; resize: none; min-height: 40px; max-height: 120px; }
+
+    /* ===== ADN VIEWER ===== */
+    .adn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .adn-field {
+      background: #F7F8FA;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      transition: border-color 0.15s;
+    }
+    .adn-field:hover { border-color: var(--ccs-celeste); }
+    .adn-field-label { font-size: 10px; color: var(--ccs-azul); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; font-weight: 700; }
+    .adn-field-value { font-size: 13px; color: var(--text-main); }
+    .adn-field-value.empty { color: var(--text-muted); font-style: italic; }
+
+    /* ===== CAMPAIGN CARDS ===== */
+    .campaign-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.18s;
+      box-shadow: var(--shadow-sm);
+    }
+    .campaign-card:hover {
+      border-color: var(--ccs-azul);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+    .campaign-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+    .campaign-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
+    .campaign-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .campaign-channels { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+    .channel-tag {
+      background: rgba(13,61,166,0.10);
+      color: var(--ccs-azul-oscuro);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .campaign-progress { margin-top: 10px; }
+    .progress-bar { height: 5px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--ccs-azul-oscuro), var(--ccs-verde));
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    /* ===== CALENDAR ===== */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .calendar-day-header {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--ccs-azul);
+      padding: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .calendar-day {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      min-height: 80px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .calendar-day:hover { border-color: var(--ccs-azul); box-shadow: var(--shadow-sm); }
+    .calendar-day.today { border-color: var(--ccs-verde); border-width: 2px; }
+    .calendar-day.other-month { opacity: 0.4; }
+    .calendar-day-num { font-size: 11px; font-weight: 700; margin-bottom: 4px; color: var(--text-main); }
+    .calendar-pub {
+      background: var(--ccs-azul-oscuro);
+      color: #fff;
+      font-size: 9px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .calendar-pub.instagram { background: #e1306c; }
+    .calendar-pub.linkedin { background: #0077b5; }
+    .calendar-pub.facebook { background: #1877f2; }
+    .calendar-pub.twitter, .calendar-pub.x { background: #1da1f2; }
+    .calendar-pub.whatsapp { background: #25d366; color: #000; }
+
+    /* ===== PUBLICATION EDITOR ===== */
+    .pub-editor {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .pub-preview {
+      background: #F7F8FA;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .pub-preview-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .pub-preview-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--ccs-azul-oscuro), var(--ccs-celeste));
+    }
+    .pub-preview-name { font-size: 13px; font-weight: 700; color: var(--text-main); }
+    .pub-preview-handle { font-size: 11px; color: var(--text-muted); }
+    .pub-preview-image {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--bg-hover);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-bottom: 10px;
+      border: 1px dashed var(--border);
+    }
+    .pub-preview-text { font-size: 13px; line-height: 1.5; color: var(--text-main); }
+    .pub-preview-hashtags { color: var(--ccs-azul); font-size: 12px; margin-top: 6px; font-weight: 600; }
+
+    /* ===== NOTIFICATIONS ===== */
+    .notification-area {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 340px;
+    }
+    .notification {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      animation: slideIn 0.3s ease;
+      box-shadow: var(--shadow-md);
+      color: var(--text-main);
+    }
+    .notification.success { border-left: 4px solid var(--ccs-verde); }
+    .notification.error { border-left: 4px solid var(--danger); }
+    .notification.info { border-left: 4px solid var(--ccs-azul); }
+    .notification.warning { border-left: 4px solid var(--warning); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ===== LOADING ===== */
+    .loading-spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(13,61,166,0.2);
+      border-top-color: var(--ccs-azul);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(247,248,250,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius);
+      z-index: 10;
+      backdrop-filter: blur(2px);
+    }
+    .loading-text { color: var(--ccs-azul); font-size: 13px; margin-top: 8px; font-weight: 500; }
+
+    /* ===== EMPTY STATES ===== */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; color: var(--ccs-celeste); }
+    .empty-title { font-size: 16px; font-weight: 700; color: var(--ccs-azul-oscuro); margin-bottom: 6px; }
+    .empty-desc { font-size: 13px; margin-bottom: 20px; }
+
+    /* ===== TABS ===== */
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+    .tab {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.15s;
+    }
+    .tab:hover { color: var(--ccs-azul); }
+    .tab.active { color: var(--ccs-azul-oscuro); border-bottom-color: var(--ccs-azul-oscuro); }
+
+    /* ===== OLLAMA STATUS ===== */
+    .ollama-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+    }
+    .status-dot.online { background: var(--ccs-verde); }
+
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(13,61,166,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(13,61,166,0.35); }
+
+    /* ===== ACENTO CCS EN INPUTS ===== */
+    input[type="checkbox"] {
+      accent-color: var(--ccs-azul-oscuro);
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+      .pub-editor { grid-template-columns: 1fr; }
+      .adn-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Notificaciones -->
+<div class="notification-area" id="notificationArea"></div>
+
+<!-- Layout principal -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <!-- Logo CCS discreto -->
+      <img src="logo-ccs.svg" alt="Cámara de Comercio de Santiago" class="sidebar-logo-img" onerror="this.src='icon.png'" />
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Principal</div>
+      <div class="nav-item active" onclick="navigateTo('dashboard')" id="nav-dashboard">
+        <span class="nav-icon">&#9632;</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="navigateTo('brands')" id="nav-brands">
+        <span class="nav-icon">&#9670;</span> Marcas
+        <span class="nav-badge" id="brandsBadge">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" id="brandSection" style="display:none">
+      <div class="sidebar-section-label" id="activeBrandLabel">Marca activa</div>
+      <div class="nav-item" onclick="navigateTo('adn')" id="nav-adn">
+        <span class="nav-icon">&#9670;</span> ADN de Marca
+      </div>
+      <div class="nav-item" onclick="navigateTo('interview')" id="nav-interview">
+        <span class="nav-icon">&#9670;</span> Entrevista IA
+      </div>
+      <div class="nav-item" onclick="navigateTo('campaigns')" id="nav-campaigns">
+        <span class="nav-icon">&#9670;</span> Campañas
+      </div>
+      <div class="nav-item" onclick="navigateTo('calendar')" id="nav-calendar">
+        <span class="nav-icon">&#9670;</span> Calendario
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Sistema</div>
+      <div class="nav-item" onclick="navigateTo('agents')" id="nav-agents">
+        <span class="nav-icon">&#9670;</span> Agentes IA
+      </div>
+      <div class="nav-item" onclick="navigateTo('audit')" id="nav-audit">
+        <span class="nav-icon">&#9670;</span> Auditoría
+      </div>
+    </div>
+
+    <div class="sidebar-brand-selector">
+      <div class="brand-select-label">Ollama</div>
+      <div class="ollama-status">
+        <div class="status-dot" id="ollamaDot"></div>
+        <span id="ollamaStatusText">Verificando...</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title" id="pageTitle">Dashboard</div>
+      <div class="topbar-actions" id="topbarActions"></div>
+    </div>
+
+    <!-- ===== PAGE: DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="grid-4" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-label">Marcas registradas</div>
+          <div class="stat-value" id="statBrands">0</div>
+          <div class="stat-sub">en tu cuenta</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Campañas activas</div>
+          <div class="stat-value" id="statCampaigns">0</div>
+          <div class="stat-sub">en progreso</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Publicaciones</div>
+          <div class="stat-value" id="statPublications">0</div>
+          <div class="stat-sub">generadas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">ADN completados</div>
+          <div class="stat-value" id="statADN">0</div>
+          <div class="stat-sub">marcas con ADN</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Campañas recientes</div>
+              <div class="card-subtitle">Acceso rápido a tus campañas activas</div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="navigateTo('campaigns')">Ver todas</button>
+          </div>
+          <div id="dashRecentCampaigns">
+            <div style="color:var(--text-muted);font-size:13px;padding:12px 0">Cargando campañas...</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Publicaciones por canal</div>
+              <div class="card-subtitle">Distribución de contenido</div>
+            </div>
+          </div>
+          <div id="dashChannelStats">
+            <div style="color:var(--text-muted);font-size:13px;padding:12px 0">Cargando estadísticas...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Comenzar</div>
+              <div class="card-subtitle">Pasos para tu primera marca</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--ccs-azul-oscuro),var(--ccs-azul));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;color:#fff">1</div>
+              <div>
+                <div style="font-size:13px;font-weight:600">Crear una marca</div>
+                <div style="font-size:11px;color:var(--text-muted)">Registra el nombre y sitio web de tu empresa</div>
+              </div>
+              <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="navigateTo('brands')">Ir</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--ccs-celeste);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;color:#fff">2</div>
+              <div>
+                <div style="font-size:13px;font-weight:600">Analizar sitio web</div>
+                <div style="font-size:11px;color:var(--text-muted)">La IA extrae el ADN de tu marca automáticamente</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--ccs-verde);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;color:#fff">3</div>
+              <div>
+                <div style="font-size:13px;font-weight:600">Entrevista con IA</div>
+                <div style="font-size:11px;color:var(--text-muted)">Refina tu ADN con preguntas guiadas</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--ccs-azul-oscuro);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;color:#fff">4</div>
+              <div>
+                <div style="font-size:13px;font-weight:600">Crear campaña</div>
+                <div style="font-size:11px;color:var(--text-muted)">Genera publicaciones para tus redes sociales</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Estado del sistema</div>
+              <div class="card-subtitle">Modelos de IA disponibles</div>
+            </div>
+          </div>
+          <div id="systemStatusContent">
+            <div style="color:var(--text-muted);font-size:13px">Cargando estado...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: BRANDS ===== -->
+    <div class="page" id="page-brands">
+      <div id="brandsContent">
+        <div class="empty-state">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Cargando marcas...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: ADN ===== -->
+    <div class="page" id="page-adn">
+      <div id="adnContent">
+        <div class="empty-state">
+          <div class="empty-icon">&#9670;</div>
+          <div class="empty-title">Selecciona una marca</div>
+          <div class="empty-desc">Elige una marca para ver o construir su ADN empresarial</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: INTERVIEW ===== -->
+    <div class="page" id="page-interview">
+      <div id="interviewContent">
+        <div class="empty-state">
+          <div class="empty-icon">&#9670;</div>
+          <div class="empty-title">Entrevista de descubrimiento</div>
+          <div class="empty-desc">Selecciona una marca para iniciar la entrevista con el agente de marketing</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: CAMPAIGNS ===== -->
+    <div class="page" id="page-campaigns">
+      <div id="campaignsContent">
+        <div class="empty-state">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Cargando campañas...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: CALENDAR ===== -->
+    <div class="page" id="page-calendar">
+      <div id="calendarContent">
+        <div class="empty-state">
+          <div class="empty-icon">&#9670;</div>
+          <div class="empty-title">Calendario de publicaciones</div>
+          <div class="empty-desc">Selecciona una campaña para ver el calendario</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: AGENTS ===== -->
+    <div class="page" id="page-agents">
+      <div id="agentsContent">
+        <div class="empty-state">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Cargando agentes...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: AUDIT ===== -->
+    <div class="page" id="page-audit">
+      <div id="auditContent">
+        <div class="empty-state">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Cargando auditoría...</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- ===== MODAL: Nueva Marca ===== -->
+<div class="modal-overlay" id="modalNewBrand">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nueva Marca</div>
+      <button class="modal-close" onclick="closeModal('modalNewBrand')">&#10005;</button>
+    </div>
+    <div class="form-group">
+      <label>Nombre de la marca *</label>
+      <input type="text" id="newBrandName" placeholder="Ej: Mi Empresa S.A." />
+    </div>
+    <div class="form-group">
+      <label>Sitio web</label>
+      <input type="url" id="newBrandWebsite" placeholder="https://miempresa.com" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sector / Rubro</label>
+        <select id="newBrandSector">
+          <option value="">Seleccionar...</option>
+          <option value="retail">Retail / Comercio</option>
+          <option value="gastronomia">Gastronomía</option>
+          <option value="servicios">Servicios profesionales</option>
+          <option value="salud">Salud y bienestar</option>
+          <option value="educacion">Educación</option>
+          <option value="tecnologia">Tecnología</option>
+          <option value="construccion">Construcción</option>
+          <option value="moda">Moda y accesorios</option>
+          <option value="turismo">Turismo y hotelería</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Idioma principal</label>
+        <select id="newBrandLanguage">
+          <option value="es">Español</option>
+          <option value="en">Inglés</option>
+          <option value="pt">Portugués</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Descripción breve</label>
+      <textarea id="newBrandDescription" placeholder="¿A qué se dedica esta empresa?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Mercados objetivo</label>
+      <input type="text" id="newBrandMarkets" placeholder="Ej: Argentina, Chile, Uruguay" />
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal('modalNewBrand')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createBrand()" id="btnCreateBrand">Crear Marca</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Nueva Campaña ===== -->
+<div class="modal-overlay" id="modalNewCampaign">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div class="modal-title">Nueva Campaña</div>
+      <button class="modal-close" onclick="closeModal('modalNewCampaign')">&#10005;</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre de la campaña *</label>
+        <input type="text" id="campName" placeholder="Ej: Lanzamiento Verano 2025" />
+      </div>
+      <div class="form-group">
+        <label>Producto / Tema *</label>
+        <input type="text" id="campProduct" placeholder="Ej: Colección verano" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Objetivo principal *</label>
+      <select id="campObjective">
+        <option value="">Seleccionar objetivo...</option>
+        <option value="awareness">Awareness — Dar a conocer la marca</option>
+        <option value="engagement">Engagement — Generar interacción</option>
+        <option value="conversion">Conversión — Generar ventas o leads</option>
+        <option value="retention">Retención — Fidelizar clientes</option>
+        <option value="lanzamiento">Lanzamiento — Nuevo producto/servicio</option>
+        <option value="promocion">Promoción — Oferta o descuento</option>
+        <option value="educacion">Educación — Contenido de valor</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Público objetivo *</label>
+      <input type="text" id="campAudience" placeholder="Ej: Mujeres 25-40 años interesadas en moda" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha de inicio *</label>
+        <input type="date" id="campStartDate" />
+      </div>
+      <div class="form-group">
+        <label>Fecha de cierre *</label>
+        <input type="date" id="campEndDate" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Canales de difusión *</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-main);cursor:pointer">
+          <input type="checkbox" value="Instagram" id="chInstagram" style="width:auto" /> Instagram
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-main);cursor:pointer">
+          <input type="checkbox" value="Facebook" id="chFacebook" style="width:auto" /> Facebook
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-main);cursor:pointer">
+          <input type="checkbox" value="LinkedIn" id="chLinkedIn" style="width:auto" /> LinkedIn
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-main);cursor:pointer">
+          <input type="checkbox" value="X" id="chX" style="width:auto" /> X (Twitter)
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-main);cursor:pointer">
+          <input type="checkbox" value="WhatsApp" id="chWhatsApp" style="width:auto" /> WhatsApp
+        </label>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Frecuencia de publicación</label>
+        <select id="campFrequency">
+          <option value="diaria">Diaria</option>
+          <option value="cada_2_dias">Cada 2 días</option>
+          <option value="3_por_semana">3 veces por semana</option>
+          <option value="semanal">Semanal</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Presupuesto estimado (opcional)</label>
+        <input type="number" id="campBudget" placeholder="0" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Restricciones u observaciones</label>
+      <textarea id="campRestrictions" placeholder="Ej: No mencionar precios, evitar comparaciones con competencia..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal('modalNewCampaign')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createCampaign()" id="btnCreateCampaign">Generar Campaña con IA</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Editor de Publicación ===== -->
+<div class="modal-overlay" id="modalPubEditor">
+  <div class="modal" style="max-width:800px">
+    <div class="modal-header">
+      <div class="modal-title" id="pubEditorTitle">Editar Publicación</div>
+      <button class="modal-close" onclick="closePubEditorNoSave()">&#10005;</button>
+    </div>
+    <div class="pub-editor" id="pubEditorContent">
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+var API_BASE = '';
+var state = {
+  currentPage: 'dashboard',
+  activeBrand: null,
+  activeCampaign: null,
+  brands: [],
+  campaigns: [],
+  interviewSessionId: null,
+};
+
+// ============================================================
+// UTILIDADES
+// ============================================================
+function apiUrl(path) {
+  return API_BASE + '/api' + path;
+}
+
+function showNotification(message, type) {
+  type = type || 'info';
+  var area = document.getElementById('notificationArea');
+  var el = document.createElement('div');
+  el.className = 'notification ' + type;
+  el.innerHTML = message;
+  area.appendChild(el);
+  setTimeout(function() {
+    if (el.parentNode) el.parentNode.removeChild(el);
+  }, 4000);
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function setLoading(btnId, loading, text) {
+  var btn = document.getElementById(btnId);
+  if (!btn) return;
+  if (loading) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span> ' + (text || 'Procesando...');
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = text || btn.getAttribute('data-original') || 'Listo';
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  var d = new Date(dateStr);
+  return d.toLocaleDateString('es-AR', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+function getStatusLabel(status) {
+  var labels = {
+    pending: 'Pendiente',
+    analyzing: 'Analizando...',
+    interviewing: 'En entrevista',
+    complete: 'Completo',
+    error: 'Error',
+    generating: 'Generando...',
+    active: 'Activa',
+    paused: 'Pausada',
+    completed: 'Completada',
+  };
+  return labels[status] || status;
+}
+
+function getStatusClass(status) {
+  var classes = {
+    pending: 'status-pending',
+    analyzing: 'status-analyzing',
+    interviewing: 'status-interviewing',
+    complete: 'status-complete',
+    error: 'status-error',
+    generating: 'status-analyzing',
+    active: 'status-complete',
+    paused: 'status-pending',
+    completed: 'status-complete',
+  };
+  return classes[status] || 'status-pending';
+}
+
+// ============================================================
+// NAVEGACIÓN
+// ============================================================
+function navigateTo(page) {
+  // Ocultar todas las páginas
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) {
+    pages[i].classList.remove('active');
+  }
+
+  // Desactivar todos los nav items
+  var navItems = document.querySelectorAll('.nav-item');
+  for (var j = 0; j < navItems.length; j++) {
+    navItems[j].classList.remove('active');
+  }
+
+  // Activar página y nav item
+  var targetPage = document.getElementById('page-' + page);
+  if (targetPage) targetPage.classList.add('active');
+
+  var targetNav = document.getElementById('nav-' + page);
+  if (targetNav) targetNav.classList.add('active');
+
+  state.currentPage = page;
+
+  // Actualizar título
+  var titles = {
+    dashboard: 'Dashboard',
+    brands: 'Marcas',
+    adn: 'ADN de Marca',
+    interview: 'Entrevista de Descubrimiento',
+    campaigns: 'Campañas',
+    calendar: 'Calendario',
+    agents: 'Configuración de Agentes',
+    audit: 'Auditoría',
+  };
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+
+  // Actualizar acciones del topbar
+  updateTopbarActions(page);
+
+  // Cargar contenido de la página
+  loadPageContent(page);
+}
+
+function updateTopbarActions(page) {
+  var actions = document.getElementById('topbarActions');
+  actions.innerHTML = '';
+
+  if (page === 'brands') {
+    actions.innerHTML = '<button class="btn btn-primary" onclick="openModal(\'modalNewBrand\')">+ Nueva Marca</button>';
+  } else if (page === 'campaigns' && state.activeBrand) {
+    actions.innerHTML = '<button class="btn btn-primary" onclick="openModal(\'modalNewCampaign\')">+ Nueva Campaña</button>';
+  } else if (page === 'adn' && state.activeBrand) {
+    actions.innerHTML = '<button class="btn btn-success" onclick="approveADN()">&#10003; Aprobar ADN</button>';
+  }
+}
+
+function loadPageContent(page) {
+  if (page === 'dashboard') loadDashboard();
+  else if (page === 'brands') loadBrands();
+  else if (page === 'adn') loadADN();
+  else if (page === 'interview') loadInterview();
+  else if (page === 'campaigns') loadCampaigns();
+  else if (page === 'calendar') loadCalendar();
+  else if (page === 'agents') loadAgents();
+  else if (page === 'audit') loadAudit();
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function loadDashboard() {
+  checkOllamaStatus();
+  loadDashboardStats();
+}
+
+function loadDashboardStats() {
+  fetch(apiUrl('/stats'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('statBrands').textContent = data.brands || 0;
+      document.getElementById('statADN').textContent = data.adn_complete || 0;
+      document.getElementById('statCampaigns').textContent = data.campaigns || 0;
+      document.getElementById('statPublications').textContent = data.publications || 0;
+
+      // Actualizar subtextos con desglose
+      var pubStatus = data.pub_by_status || {};
+      var pubEl = document.getElementById('statPublications');
+      if (pubEl && pubEl.parentNode) {
+        var sub = pubEl.parentNode.querySelector('.stat-sub');
+        if (sub) {
+          var published = pubStatus.published || 0;
+          var pending = pubStatus.pending || 0;
+          sub.textContent = published + ' publicadas, ' + pending + ' pendientes';
+        }
+      }
+
+      // Mostrar campañas recientes en el dashboard
+      var recentEl = document.getElementById('dashRecentCampaigns');
+      if (recentEl) {
+        if (data.recent_campaigns && data.recent_campaigns.length > 0) {
+          var html = '';
+          for (var i = 0; i < data.recent_campaigns.length; i++) {
+            var c = data.recent_campaigns[i];
+            html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg-base);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="selectCampaignFromDashboard(\'' + c.id + '\')">';
+            html += '<div style="width:8px;height:8px;border-radius:50%;background:var(--primary);flex-shrink:0"></div>';
+            html += '<div style="flex:1;min-width:0">';
+            html += '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(c.name || '') + '</div>';
+            html += '<div style="font-size:10px;color:var(--text-muted)">' + (c.channels || []).join(' · ') + '</div>';
+            html += '</div>';
+            html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();selectCampaignFromDashboard(\'' + c.id + '\')">Ver</button>';
+            html += '</div>';
+          }
+          recentEl.innerHTML = html;
+        } else {
+          recentEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay campañas aún. <a href="#" onclick="navigateTo(\'campaigns\')">Crear primera campaña</a></div>';
+        }
+      }
+
+      // Mostrar distribución por canal
+      var channelEl = document.getElementById('dashChannelStats');
+      if (channelEl) {
+        var byChannel = data.pub_by_channel || {};
+        var channelKeys = Object.keys(byChannel);
+        var total = data.publications || 0;
+        if (channelKeys.length > 0 && total > 0) {
+          var channelColors = {Instagram: '#e1306c', LinkedIn: '#0077b5', WhatsApp: '#25d366', Facebook: '#1877f2', Twitter: '#1da1f2', TikTok: '#010101'};
+          var html = '<div style="display:flex;flex-direction:column;gap:8px">';
+          for (var ci = 0; ci < channelKeys.length; ci++) {
+            var ch = channelKeys[ci];
+            var cnt = byChannel[ch];
+            var pct = Math.round((cnt / total) * 100);
+            var color = channelColors[ch] || 'var(--primary)';
+            html += '<div>';
+            html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">';
+            html += '<span>' + escapeHtml(ch) + '</span><span style="color:var(--text-muted)">' + cnt + ' (' + pct + '%)</span>';
+            html += '</div>';
+            html += '<div style="height:6px;background:var(--bg-base);border-radius:3px;overflow:hidden">';
+            html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 0.5s"></div>';
+            html += '</div></div>';
+          }
+          html += '</div>';
+          channelEl.innerHTML = html;
+        } else {
+          channelEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay publicaciones aún.</div>';
+        }
+      }
+    })
+    .catch(function() {
+      // Fallback: cargar solo marcas
+      fetch(apiUrl('/brands'))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var brands = data.brands || [];
+          document.getElementById('statBrands').textContent = brands.length;
+          var complete = brands.filter(function(b) { return b.onboarding_status === 'complete'; }).length;
+          document.getElementById('statADN').textContent = complete;
+        })
+        .catch(function() {});
+    });
+}
+
+function selectCampaignFromDashboard(campaignId) {
+  // Buscar la campaña en state.campaigns o cargarla
+  var found = null;
+  for (var i = 0; i < state.campaigns.length; i++) {
+    if (state.campaigns[i].id === campaignId) { found = state.campaigns[i]; break; }
+  }
+  if (found) {
+    state.activeCampaign = found;
+    navigateTo('calendar');
+  } else {
+    // Buscar en todas las marcas
+    navigateTo('campaigns');
+  }
+}
+
+function checkOllamaStatus() {
+  fetch(apiUrl('/ollama/status'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var dot = document.getElementById('ollamaDot');
+      var text = document.getElementById('ollamaStatusText');
+      var sysContent = document.getElementById('systemStatusContent');
+
+      if (data.available) {
+        dot.classList.add('online');
+        text.textContent = 'Ollama activo';
+        var modelsHtml = '<div style="margin-bottom:8px;font-size:12px;color:var(--success)">&#10003; Ollama está corriendo</div>';
+        if (data.models && data.models.length > 0) {
+          modelsHtml += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Modelos disponibles:</div>';
+          modelsHtml += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+          for (var i = 0; i < data.models.length; i++) {
+            modelsHtml += '<span style="background:rgba(13,61,166,0.10);color:var(--ccs-azul-oscuro);font-size:11px;padding:3px 8px;border-radius:20px">' + data.models[i] + '</span>';
+          }
+          modelsHtml += '</div>';
+        } else {
+          modelsHtml += '<div style="font-size:12px;color:var(--warning)">&#9888; No hay modelos instalados. Ejecuta: ollama pull llama3.2:3b</div>';
+        }
+        sysContent.innerHTML = modelsHtml;
+      } else {
+        dot.classList.remove('online');
+        text.textContent = 'Ollama no disponible';
+        sysContent.innerHTML = '<div style="font-size:12px;color:var(--danger)">&#10007; Ollama no está corriendo</div><div style="font-size:11px;color:var(--text-muted);margin-top:8px">Asegúrate de que Ollama esté instalado y ejecutándose en tu sistema.</div>';
+      }
+    })
+    .catch(function() {
+      document.getElementById('ollamaStatusText').textContent = 'Sin conexión';
+    });
+}
+
+// ============================================================
+// MARCAS
+// ============================================================
+function loadBrands() {
+  var content = document.getElementById('brandsContent');
+  content.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><div class="loading-text">Cargando marcas...</div></div>';
+
+  fetch(apiUrl('/brands'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      state.brands = data.brands || [];
+      document.getElementById('brandsBadge').textContent = state.brands.length;
+      renderBrands();
+    })
+    .catch(function(e) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error al cargar marcas</div><div class="empty-desc">' + e.message + '</div></div>';
+    });
+}
+
+function renderBrands() {
+  var content = document.getElementById('brandsContent');
+
+  if (state.brands.length === 0) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Sin marcas registradas</div><div class="empty-desc">Crea tu primera marca para comenzar a construir su identidad digital con IA</div><button class="btn btn-primary btn-lg" onclick="openModal(\'modalNewBrand\')">+ Crear primera marca</button></div>';
+    return;
+  }
+
+  var html = '<div class="grid-3">';
+  for (var i = 0; i < state.brands.length; i++) {
+    var b = state.brands[i];
+    var initial = (b.name || '?').charAt(0).toUpperCase();
+    var isSelected = state.activeBrand && state.activeBrand.id === b.id;
+    html += '<div class="brand-card' + (isSelected ? ' selected' : '') + '" onclick="selectBrand(\'' + b.id + '\')">';
+    html += '<div class="brand-avatar">' + initial + '</div>';
+    html += '<div class="brand-name">' + escapeHtml(b.name) + '</div>';
+    html += '<div class="brand-sector">' + escapeHtml(b.sector || 'Sin sector') + '</div>';
+    html += '<div><span class="brand-status ' + getStatusClass(b.onboarding_status) + '">' + getStatusLabel(b.onboarding_status) + '</span></div>';
+    if (b.website) {
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(b.website) + '</div>';
+    }
+    html += '<div style="display:flex;gap:6px;margin-top:12px">';
+    html += '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();selectBrandAndGo(\'' + b.id + '\',\'adn\')">Ver ADN</button>';
+    if (b.website && b.onboarding_status === 'pending') {
+      html += '<button class="btn btn-sm btn-accent" onclick="event.stopPropagation();analyzeWebsite(\'' + b.id + '\',\'' + escapeHtml(b.website) + '\')">Analizar web</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+function selectBrand(brandId) {
+  for (var i = 0; i < state.brands.length; i++) {
+    if (state.brands[i].id === brandId) {
+      state.activeBrand = state.brands[i];
+      break;
+    }
+  }
+  if (!state.activeBrand) return;
+
+  document.getElementById('brandSection').style.display = 'block';
+  document.getElementById('activeBrandLabel').textContent = state.activeBrand.name;
+  renderBrands();
+  showNotification('Marca seleccionada: ' + state.activeBrand.name, 'info');
+}
+
+function selectBrandAndGo(brandId, page) {
+  selectBrand(brandId);
+  navigateTo(page);
+}
+
+function createBrand() {
+  var name = document.getElementById('newBrandName').value.trim();
+  if (!name) { showNotification('El nombre de la marca es obligatorio', 'error'); return; }
+
+  setLoading('btnCreateBrand', true, 'Creando...');
+
+  var payload = {
+    name: name,
+    website: document.getElementById('newBrandWebsite').value.trim() || null,
+    description: document.getElementById('newBrandDescription').value.trim() || null,
+    sector: document.getElementById('newBrandSector').value || null,
+    target_markets: document.getElementById('newBrandMarkets').value.trim() || null,
+    language: document.getElementById('newBrandLanguage').value,
+  };
+
+  fetch(apiUrl('/brands'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(brand) {
+      setLoading('btnCreateBrand', false, 'Crear Marca');
+      closeModal('modalNewBrand');
+      showNotification('Marca "' + brand.name + '" creada correctamente', 'success');
+      state.brands.unshift(brand);
+      document.getElementById('brandsBadge').textContent = state.brands.length;
+      renderBrands();
+      selectBrand(brand.id);
+
+      // Limpiar formulario
+      document.getElementById('newBrandName').value = '';
+      document.getElementById('newBrandWebsite').value = '';
+      document.getElementById('newBrandDescription').value = '';
+      document.getElementById('newBrandSector').value = '';
+      document.getElementById('newBrandMarkets').value = '';
+    })
+    .catch(function(e) {
+      setLoading('btnCreateBrand', false, 'Crear Marca');
+      showNotification('Error al crear marca: ' + e.message, 'error');
+    });
+}
+
+function analyzeWebsite(brandId, url) {
+  if (!url) { showNotification('La marca no tiene sitio web configurado', 'warning'); return; }
+  showNotification('Iniciando análisis del sitio web... Esto puede tomar unos minutos.', 'info');
+
+  fetch(apiUrl('/brands/' + brandId + '/analyze-website'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({brand_id: brandId, url: url}),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      showNotification('Análisis iniciado. El ADN se construirá en segundo plano.', 'success');
+      // Actualizar estado local
+      for (var i = 0; i < state.brands.length; i++) {
+        if (state.brands[i].id === brandId) {
+          state.brands[i].onboarding_status = 'analyzing';
+          break;
+        }
+      }
+      renderBrands();
+      // Polling para verificar cuando termine
+      pollBrandStatus(brandId);
+    })
+    .catch(function(e) {
+      showNotification('Error al iniciar análisis: ' + e.message, 'error');
+    });
+}
+
+function pollBrandStatus(brandId) {
+  var interval = setInterval(function() {
+    fetch(apiUrl('/brands/' + brandId))
+      .then(function(r) { return r.json(); })
+      .then(function(brand) {
+        if (brand.onboarding_status !== 'analyzing') {
+          clearInterval(interval);
+          // Actualizar en state
+          for (var i = 0; i < state.brands.length; i++) {
+            if (state.brands[i].id === brandId) {
+              state.brands[i] = brand;
+              break;
+            }
+          }
+          if (state.activeBrand && state.activeBrand.id === brandId) {
+            state.activeBrand = brand;
+          }
+          renderBrands();
+          if (brand.onboarding_status === 'interviewing') {
+            showNotification('Análisis completado. ADN borrador listo. Puedes iniciar la entrevista.', 'success');
+          } else if (brand.onboarding_status === 'error') {
+            showNotification('Error en el análisis: ' + (brand.error || 'Error desconocido'), 'error');
+          }
+        }
+      })
+      .catch(function() { clearInterval(interval); });
+  }, 5000);
+}
+
+// ============================================================
+// ADN
+// ============================================================
+function loadADN() {
+  var content = document.getElementById('adnContent');
+  if (!state.activeBrand) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Selecciona una marca</div><div class="empty-desc">Ve a la sección Marcas y selecciona una para ver su ADN</div><button class="btn btn-primary" onclick="navigateTo(\'brands\')">Ir a Marcas</button></div>';
+    return;
+  }
+
+  content.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><div class="loading-text">Cargando ADN...</div></div>';
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/adn'))
+    .then(function(r) {
+      if (!r.ok) throw new Error('ADN no encontrado');
+      return r.json();
+    })
+    .then(function(adn) {
+      renderADN(adn);
+    })
+    .catch(function() {
+      renderADNEmpty();
+    });
+}
+
+function renderADNEmpty() {
+  var content = document.getElementById('adnContent');
+  var brand = state.activeBrand;
+  content.innerHTML = '<div class="card"><div class="card-header"><div><div class="card-title">ADN de ' + escapeHtml(brand.name) + '</div><div class="card-subtitle">Aún no se ha construido el ADN de esta marca</div></div></div>' +
+    '<div class="empty-state" style="padding:32px 0">' +
+    '<div class="empty-icon">&#9670;</div>' +
+    '<div class="empty-title">Sin ADN todavía</div>' +
+    '<div class="empty-desc">Para construir el ADN, primero analiza el sitio web de la marca o inicia la entrevista directamente.</div>' +
+    '<div style="display:flex;gap:10px;justify-content:center">' +
+    (brand.website ? '<button class="btn btn-accent" onclick="analyzeWebsite(\'' + brand.id + '\',\'' + escapeHtml(brand.website) + '\')">Analizar sitio web</button>' : '') +
+    '<button class="btn btn-primary" onclick="navigateTo(\'interview\')">Iniciar entrevista</button>' +
+    '</div></div></div>';
+}
+
+function renderADN(adn) {
+  var content = document.getElementById('adnContent');
+  var fields = adn.fields || {};
+  var status = adn.status || 'draft';
+
+  var html = '<div class="card">';
+  html += '<div class="card-header">';
+  html += '<div><div class="card-title">ADN de ' + escapeHtml(state.activeBrand.name) + '</div>';
+  html += '<div class="card-subtitle">Versión ' + (adn.version || 'borrador') + ' &mdash; <span class="brand-status ' + getStatusClass(status) + '">' + (status === 'approved' ? 'Aprobado' : 'Borrador') + '</span></div></div>';
+  html += '<div style="display:flex;gap:8px">';
+  if (status !== 'approved') {
+    html += '<button class="btn btn-success btn-sm" onclick="approveADN()">&#10003; Aprobar ADN</button>';
+  }
+  html += '<button class="btn btn-secondary btn-sm" onclick="navigateTo(\'interview\')">Refinar con IA</button>';
+  html += '</div></div>';
+
+  var adnFields = [
+    {key: 'value_proposition', label: 'Propuesta de valor'},
+    {key: 'sector', label: 'Sector'},
+    {key: 'tone', label: 'Tono comunicacional'},
+    {key: 'formality_level', label: 'Nivel de formalidad'},
+    {key: 'target_audience', label: 'Público objetivo'},
+    {key: 'visual_style', label: 'Estilo visual'},
+    {key: 'typography', label: 'Tipografía'},
+    {key: 'personality_traits', label: 'Personalidad de marca'},
+    {key: 'products_services', label: 'Productos / Servicios'},
+    {key: 'brand_promises', label: 'Promesas de marca'},
+    {key: 'differentiators', label: 'Diferenciadores'},
+    {key: 'content_themes', label: 'Temas de contenido'},
+    {key: 'color_palette', label: 'Paleta de colores'},
+  ];
+
+  html += '<div class="adn-grid">';
+  for (var i = 0; i < adnFields.length; i++) {
+    var f = adnFields[i];
+    var val = fields[f.key];
+    var displayVal = '';
+    if (Array.isArray(val)) {
+      displayVal = val.length > 0 ? val.join(', ') : '';
+    } else {
+      displayVal = val || '';
+    }
+    html += '<div class="adn-field">';
+    html += '<div class="adn-field-label">' + f.label + '</div>';
+    html += '<div class="adn-field-value' + (displayVal ? '' : ' empty') + '">' + (displayVal ? escapeHtml(String(displayVal)) : 'Sin información') + '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  if (fields.raw_analysis) {
+    html += '<div style="margin-top:16px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Análisis completo del agente</div>';
+    html += '<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);max-height:200px;overflow-y:auto;white-space:pre-wrap">' + escapeHtml(fields.raw_analysis) + '</div></div>';
+  }
+
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+function approveADN() {
+  if (!state.activeBrand) return;
+  if (!confirm('¿Aprobar esta versión del ADN? Las campañas futuras usarán este ADN como base.')) return;
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/adn/approve'), {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      showNotification('ADN aprobado correctamente (versión ' + data.version + ')', 'success');
+      state.activeBrand.onboarding_status = 'complete';
+      loadADN();
+    })
+    .catch(function(e) {
+      showNotification('Error al aprobar ADN: ' + e.message, 'error');
+    });
+}
+
+// ============================================================
+// ENTREVISTA
+// ============================================================
+function loadInterview() {
+  var content = document.getElementById('interviewContent');
+  if (!state.activeBrand) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Selecciona una marca</div><div class="empty-desc">Ve a la sección Marcas y selecciona una para iniciar la entrevista</div><button class="btn btn-primary" onclick="navigateTo(\'brands\')">Ir a Marcas</button></div>';
+    return;
+  }
+
+  content.innerHTML = '<div class="card"><div class="card-header"><div><div class="card-title">Entrevista de Descubrimiento</div><div class="card-subtitle">Marca: ' + escapeHtml(state.activeBrand.name) + '</div></div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+    '<button class="btn btn-secondary btn-sm" onclick="startInterview()">Reiniciar</button>' +
+    '<button class="btn btn-danger btn-sm" id="btnFinishInterview" onclick="finishInterview()" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">Finalizar entrevista</button>' +
+    '</div></div>' +
+    '<p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">El agente te hará preguntas para construir el ADN de tu marca. Responde con naturalidad. Escribe <strong>"fin"</strong> o haz clic en <strong>Finalizar entrevista</strong> para terminar y actualizar el ADN.</p>' +
+    '<div class="chat-container" id="chatContainer">' +
+    '<div class="chat-messages" id="chatMessages">' +
+    '<div class="chat-message system-msg">Sesión iniciada. El agente está listo para comenzar la entrevista.</div>' +
+    '</div>' +
+    '<div class="chat-input-area">' +
+    '<textarea class="chat-input" id="chatInput" placeholder="Escribe tu respuesta... (escribe \"fin\" para terminar)" onkeydown="handleChatKey(event)"></textarea>' +
+    '<button class="btn btn-primary" onclick="sendInterviewMessage()" id="btnSendChat">Enviar</button>' +
+    '</div></div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<button class="btn btn-accent btn-sm" onclick="navigateTo(\'adn\')">Ver ADN actualizado</button>' +
+    '</div></div>';
+
+  // Auto-iniciar entrevista
+  startInterview();
+}
+
+function startInterview() {
+  var greeting = '¡Hola! Estoy aquí para ayudarte a construir el ADN de tu marca. Para comenzar, cuéntame: ¿cuál es la historia de ' + state.activeBrand.name + '? ¿Cómo nació y qué problema resuelve para sus clientes?';
+  addChatMessage('assistant', greeting);
+}
+
+function handleChatKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    sendInterviewMessage();
+  }
+}
+
+function sendInterviewMessage() {
+  var input = document.getElementById('chatInput');
+  var message = input.value.trim();
+  if (!message) return;
+
+  // Detectar palabras clave de finalización
+  var finKeywords = ['fin', 'terminar', 'finalizar', 'listo', 'done', 'finish', 'termina', 'cerrar'];
+  var msgLower = message.toLowerCase().trim();
+  if (finKeywords.indexOf(msgLower) !== -1) {
+    input.value = '';
+    addChatMessage('user', message);
+    addChatMessage('system-msg', 'Finalizando entrevista y actualizando ADN...');
+    finishInterview();
+    return;
+  }
+
+  addChatMessage('user', message);
+  input.value = '';
+
+  var btn = document.getElementById('btnSendChat');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span>';
+
+  var payload = {
+    brand_id: state.activeBrand.id,
+    session_id: state.interviewSessionId,
+    message: message,
+  };
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/interview'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      btn.disabled = false;
+      btn.innerHTML = 'Enviar';
+      state.interviewSessionId = data.session_id;
+      addChatMessage('assistant', data.response);
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.innerHTML = 'Enviar';
+      addChatMessage('system-msg', 'Error al contactar al agente: ' + e.message);
+    });
+}
+
+function finishInterview() {
+  if (!state.activeBrand) return;
+
+  var btn = document.getElementById('btnFinishInterview');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Procesando...'; }
+
+  var sendBtn = document.getElementById('btnSendChat');
+  if (sendBtn) { sendBtn.disabled = true; }
+
+  var input = document.getElementById('chatInput');
+  if (input) { input.disabled = true; }
+
+  addChatMessage('system-msg', 'Finalizando entrevista. Analizando la conversación y actualizando el ADN de marca...');
+
+  var url = apiUrl('/brands/' + state.activeBrand.id + '/interview/finish');
+  if (state.interviewSessionId) {
+    url += '?session_id=' + encodeURIComponent(state.interviewSessionId);
+  }
+
+  fetch(url, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Finalizar entrevista'; }
+      if (sendBtn) { sendBtn.disabled = false; }
+      if (input) { input.disabled = false; }
+
+      if (data.status === 'finished') {
+        var msg = data.adn_updated
+          ? 'Entrevista finalizada. ADN actualizado con ' + data.message_count + ' mensajes analizados. Ve a la sección ADN para revisar los cambios.'
+          : 'Entrevista finalizada (' + data.message_count + ' mensajes). ' + (data.message || '');
+        addChatMessage('system-msg', msg);
+        showNotification('Entrevista finalizada. ADN actualizado.', 'success');
+        // Resetear sesión
+        state.interviewSessionId = null;
+        // Deshabilitar input
+        if (input) { input.disabled = true; input.placeholder = 'Entrevista finalizada. Inicia una nueva si lo necesitas.'; }
+        if (sendBtn) { sendBtn.disabled = true; }
+        // Actualizar estado de la marca en memoria y en la UI
+        if (state.activeBrand) {
+          state.activeBrand.onboarding_status = 'complete';
+          // Actualizar también en el array de marcas
+          for (var i = 0; i < state.brands.length; i++) {
+            if (state.brands[i].id === state.activeBrand.id) {
+              state.brands[i].onboarding_status = 'complete';
+              break;
+            }
+          }
+          // Refrescar la lista de marcas en la UI si está visible
+          var brandsContent = document.getElementById('brandsContent');
+          if (brandsContent && brandsContent.innerHTML !== '') {
+            loadBrands();
+          }
+        }
+      } else {
+        addChatMessage('system-msg', 'Estado: ' + (data.message || data.status));
+        showNotification(data.message || 'Entrevista finalizada', 'info');
+      }
+    })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Finalizar entrevista'; }
+      if (sendBtn) { sendBtn.disabled = false; }
+      if (input) { input.disabled = false; }
+      showNotification('Error al finalizar entrevista: ' + e.message, 'error');
+      addChatMessage('system-msg', 'Error al finalizar: ' + e.message);
+    });
+}
+
+function addChatMessage(role, content) {
+  var messages = document.getElementById('chatMessages');
+  if (!messages) return;
+  var el = document.createElement('div');
+  el.className = 'chat-message ' + role;
+  el.textContent = content;
+  messages.appendChild(el);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// ============================================================
+// CAMPAÑAS
+// ============================================================
+function loadCampaigns() {
+  var content = document.getElementById('campaignsContent');
+  if (!state.activeBrand) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Selecciona una marca</div><div class="empty-desc">Ve a la sección Marcas y selecciona una para gestionar sus campañas</div><button class="btn btn-primary" onclick="navigateTo(\'brands\')">Ir a Marcas</button></div>';
+    return;
+  }
+
+  content.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><div class="loading-text">Cargando campañas...</div></div>';
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/campaigns'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      state.campaigns = data.campaigns || [];
+      renderCampaigns();
+    })
+    .catch(function(e) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+    });
+}
+
+function renderCampaigns() {
+  var content = document.getElementById('campaignsContent');
+
+  if (state.campaigns.length === 0) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Sin campañas</div><div class="empty-desc">Crea tu primera campaña para generar publicaciones con IA</div><button class="btn btn-primary btn-lg" onclick="openModal(\'modalNewCampaign\')">+ Crear primera campaña</button></div>';
+    return;
+  }
+
+  var html = '<div class="grid-2">';
+  for (var i = 0; i < state.campaigns.length; i++) {
+    var c = state.campaigns[i];
+    var isGenerating = c.status === 'generating';
+
+    html += '<div class="campaign-card" data-campaign-id="' + c.id + '" onclick="selectCampaign(\'' + c.id + '\')';
+    html += '">';
+    html += '<div class="campaign-header">';
+    html += '<div><div class="campaign-name">' + escapeHtml(c.name) + '</div>';
+    html += '<div class="campaign-meta">' + escapeHtml(c.objective) + ' &bull; ' + formatDate(c.start_date) + ' al ' + formatDate(c.end_date) + '</div></div>';
+    html += '<span class="brand-status ' + getStatusClass(c.status) + '">' + getStatusLabel(c.status) + '</span>';
+    html += '</div>';
+    html += '<div class="campaign-channels">';
+    var channels = c.channels || [];
+    for (var j = 0; j < channels.length; j++) {
+      html += '<span class="channel-tag">' + channels[j] + '</span>';
+    }
+    html += '</div>';
+
+    // Área de progreso (se actualiza en tiempo real vía _updateCampaignCardProgress)
+    html += '<div class="campaign-progress-area" style="margin-top:10px">';
+    if (isGenerating) {
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:6px">';
+      html += '<span class="loading-spinner" style="width:10px;height:10px"></span>';
+      html += '<span>Iniciando generación con IA...</span>';
+      html += '</div>';
+      html += '<div class="progress-bar"><div class="progress-fill" style="width:5%"></div></div>';
+    } else if (c.publications_count > 0) {
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">' + c.publications_count + ' publicaciones generadas</div>';
+      html += '<div class="progress-bar"><div class="progress-fill" style="width:100%;background:var(--ccs-verde)"></div></div>';
+    }
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:6px;margin-top:12px">';
+    html += '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();viewCampaignCalendar(\'' + c.id + '\')">Ver calendario</button>';
+    html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();viewCampaignPublications(\'' + c.id + '\')">Ver publicaciones</button>';
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  content.innerHTML = html;
+
+  // Reanudar polling para campañas que aún están generando
+  for (var k = 0; k < state.campaigns.length; k++) {
+    if (state.campaigns[k].status === 'generating') {
+      _pollCampaignProgress(state.campaigns[k].id);
+    }
+  }
+}
+
+function selectCampaign(campaignId) {
+  for (var i = 0; i < state.campaigns.length; i++) {
+    if (state.campaigns[i].id === campaignId) {
+      state.activeCampaign = state.campaigns[i];
+      break;
+    }
+  }
+}
+
+function viewCampaignCalendar(campaignId) {
+  selectCampaign(campaignId);
+  navigateTo('calendar');
+}
+
+function viewCampaignPublications(campaignId) {
+  selectCampaign(campaignId);
+  loadPublicationsView(campaignId);
+}
+
+function createCampaign() {
+  var name = document.getElementById('campName').value.trim();
+  var objective = document.getElementById('campObjective').value;
+  var product = document.getElementById('campProduct').value.trim();
+  var audience = document.getElementById('campAudience').value.trim();
+  var startDate = document.getElementById('campStartDate').value;
+  var endDate = document.getElementById('campEndDate').value;
+
+  if (!name || !objective || !product || !audience || !startDate || !endDate) {
+    showNotification('Completa todos los campos obligatorios', 'error');
+    return;
+  }
+
+  var channels = [];
+  var checkboxes = ['chInstagram', 'chFacebook', 'chLinkedIn', 'chX', 'chWhatsApp'];
+  for (var i = 0; i < checkboxes.length; i++) {
+    var cb = document.getElementById(checkboxes[i]);
+    if (cb && cb.checked) channels.push(cb.value);
+  }
+
+  if (channels.length === 0) {
+    showNotification('Selecciona al menos un canal', 'error');
+    return;
+  }
+
+  var payload = {
+    brand_id: state.activeBrand.id,
+    name: name,
+    objective: objective,
+    product_or_topic: product,
+    target_audience: audience,
+    start_date: startDate,
+    end_date: endDate,
+    channels: channels,
+    frequency: document.getElementById('campFrequency').value,
+    budget: parseFloat(document.getElementById('campBudget').value) || null,
+    restrictions: document.getElementById('campRestrictions').value.trim() || null,
+  };
+
+  // Deshabilitar solo el botón brevemente mientras se envía la solicitud
+  var btn = document.getElementById('btnCreateCampaign');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando...'; }
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/campaigns'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(campaign) {
+      // Rehabilitar botón y cerrar modal INMEDIATAMENTE
+      if (btn) { btn.disabled = false; btn.textContent = 'Generar Campaña con IA'; }
+      closeModal('modalNewCampaign');
+      showNotification('✅ Campaña creada. Generando publicaciones en segundo plano...', 'success');
+
+      // Agregar la campaña al estado con status 'generating'
+      campaign.status = campaign.status || 'generating';
+      state.campaigns.unshift(campaign);
+      renderCampaigns();
+
+      // Iniciar polling de progreso por canal
+      _pollCampaignProgress(campaign.id);
+    })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Generar Campaña con IA'; }
+      showNotification('Error al crear campaña: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Polling de progreso de generación de campaña con desglose por canal.
+ * Usa el endpoint dedicado GET /api/campaigns/{id}/progress.
+ * Actualiza la tarjeta de la campaña en tiempo real sin recargar toda la lista.
+ */
+function _pollCampaignProgress(campaignId) {
+  var interval = setInterval(function() {
+    fetch(apiUrl('/campaigns/' + campaignId + '/progress'))
+      .then(function(r) { return r.json(); })
+      .then(function(prog) {
+        // Actualizar la tarjeta de la campaña en el DOM directamente
+        _updateCampaignCardProgress(campaignId, prog);
+
+        if (prog.status !== 'generating') {
+          clearInterval(interval);
+          // Recargar la lista completa de campañas para reflejar el estado final
+          fetch(apiUrl('/brands/' + state.activeBrand.id + '/campaigns'))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              state.campaigns = data.campaigns || [];
+              renderCampaigns();
+              if (prog.status === 'active') {
+                showNotification('✅ Campaña lista con ' + prog.publications_count + ' publicaciones generadas', 'success');
+              } else if (prog.status === 'error') {
+                showNotification('❌ Error al generar campaña: ' + (prog.error || 'error desconocido'), 'error');
+              }
+            });
+        }
+      })
+      .catch(function() { clearInterval(interval); });
+  }, 3000);
+}
+
+// Alias de compatibilidad con código anterior
+function pollCampaignStatus(campaignId) { _pollCampaignProgress(campaignId); }
+
+/**
+ * Actualiza la tarjeta de una campaña en el DOM con el progreso actual.
+ * Si la tarjeta no existe, no hace nada (se creará en el siguiente renderCampaigns).
+ */
+function _updateCampaignCardProgress(campaignId, prog) {
+  var card = document.querySelector('[data-campaign-id="' + campaignId + '"]');
+  if (!card) return;
+
+  var progressEl = card.querySelector('.campaign-progress-area');
+  if (!progressEl) return;
+
+  var channels = prog.channels || [];
+  var pct = prog.pct || 0;
+  var done = prog.publications_done || 0;
+  var total = prog.publications_total || 0;
+
+  var html = '';
+  if (prog.status === 'generating') {
+    // Barra global
+    html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:6px">';
+    html += '<span class="loading-spinner" style="width:10px;height:10px"></span>';
+    html += '<span>Generando ' + done + '/' + total + ' publicaciones (' + pct + '%)</span>';
+    html += '</div>';
+    html += '<div class="progress-bar" style="margin-bottom:8px"><div class="progress-fill" style="width:' + pct + '%"></div></div>';
+
+    // Barras por canal
+    if (channels.length > 0) {
+      html += '<div style="display:flex;flex-direction:column;gap:4px">';
+      for (var i = 0; i < channels.length; i++) {
+        var ch = channels[i];
+        var chPct = ch.pct || 0;
+        var chColor = chPct === 100 ? 'var(--ccs-verde)' : 'var(--ccs-azul)';
+        html += '<div style="display:flex;align-items:center;gap:6px">';
+        html += '<span style="font-size:10px;color:var(--text-muted);min-width:70px">' + ch.channel + '</span>';
+        html += '<div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden">';
+        html += '<div style="height:100%;width:' + chPct + '%;background:' + chColor + ';border-radius:2px;transition:width 0.5s"></div>';
+        html += '</div>';
+        html += '<span style="font-size:10px;color:var(--text-muted);min-width:40px;text-align:right">' + ch.done + '/' + ch.total + '</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+  } else if (prog.status === 'active') {
+    html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">' + prog.publications_count + ' publicaciones generadas</div>';
+    html += '<div class="progress-bar"><div class="progress-fill" style="width:100%;background:var(--ccs-verde)"></div></div>';
+  } else if (prog.status === 'error') {
+    html += '<div style="font-size:11px;color:#ef4444">❌ Error: ' + (prog.error || 'error desconocido') + '</div>';
+  }
+
+  progressEl.innerHTML = html;
+}
+
+// Compatibilidad: pollCampaignStatus antiguo
+function _legacyPollCampaignStatus(campaignId) {
+  var interval = setInterval(function() {
+    fetch(apiUrl('/brands/' + state.activeBrand.id + '/campaigns'))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var campaigns = data.campaigns || [];
+        for (var i = 0; i < campaigns.length; i++) {
+          if (campaigns[i].id === campaignId && campaigns[i].status !== 'generating') {
+            clearInterval(interval);
+            state.campaigns = campaigns;
+            renderCampaigns();
+            if (campaigns[i].status === 'active') {
+              showNotification('Campaña lista con ' + campaigns[i].publications_count + ' publicaciones generadas', 'success');
+            }
+            break;
+          }
+        }
+      })
+      .catch(function() { clearInterval(interval); });
+  }, 5000);
+}
+
+// ============================================================
+// CALENDARIO
+// ============================================================
+// Estado del calendario
+var calState = { year: 0, month: 0, allPubs: [], channelFilter: '', selectedDate: null };
+
+function loadCalendar() {
+  var content = document.getElementById('calendarContent');
+  if (!state.activeCampaign) {
+    if (state.campaigns.length > 0) {
+      state.activeCampaign = state.campaigns[0];
+    } else {
+      content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Sin campaña seleccionada</div><div class="empty-desc">Ve a Campañas y selecciona una para ver el calendario</div><button class="btn btn-primary" onclick="navigateTo(\'campaigns\')">Ir a Campañas</button></div>';
+      return;
+    }
+  }
+
+  content.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><div class="loading-text">Cargando publicaciones...</div></div>';
+
+  fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var pubs = data.publications || [];
+      calState.allPubs = pubs;
+      calState.channelFilter = '';
+      calState.selectedDate = null;
+      // Iniciar en el mes de la primera publicación o mes actual
+      var now = new Date();
+      if (pubs.length > 0 && pubs[0].scheduled_at) {
+        var firstDate = new Date(pubs[0].scheduled_at.split(' ')[0]);
+        calState.year = firstDate.getFullYear();
+        calState.month = firstDate.getMonth();
+      } else {
+        calState.year = now.getFullYear();
+        calState.month = now.getMonth();
+      }
+      renderCalendar();
+    })
+    .catch(function(e) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+    });
+}
+
+function renderCalendar() {
+  var content = document.getElementById('calendarContent');
+  var camp = state.activeCampaign;
+  var year = calState.year;
+  var month = calState.month;
+  var pubs = calState.allPubs;
+  var filter = calState.channelFilter;
+
+  // Filtrar publicaciones por canal si hay filtro
+  var filteredPubs = filter ? pubs.filter(function(p) { return p.channel === filter; }) : pubs;
+
+  // Agrupar por fecha (YYYY-MM-DD)
+  var byDate = {};
+  for (var i = 0; i < filteredPubs.length; i++) {
+    var pub = filteredPubs[i];
+    var date = (pub.scheduled_at || '').split(' ')[0];
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(pub);
+  }
+
+  var monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var dayNames = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  var channelColors = {Instagram: '#e1306c', LinkedIn: '#0077b5', WhatsApp: '#25d366', Facebook: '#1877f2', Twitter: '#1da1f2', TikTok: '#010101'};
+
+  // Calcular primer día del mes y total de días
+  var firstDay = new Date(year, month, 1).getDay(); // 0=Dom
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Canales disponibles
+  var channels = camp.channels || [];
+  var allChannels = [];
+  for (var ci = 0; ci < pubs.length; ci++) {
+    if (pubs[ci].channel && allChannels.indexOf(pubs[ci].channel) === -1) allChannels.push(pubs[ci].channel);
+  }
+
+  var html = '<div class="card" style="margin-bottom:16px">';
+  // Cabecera de la campaña
+  html += '<div class="card-header" style="flex-wrap:wrap;gap:8px">';
+  html += '<div><div class="card-title">Campaña: ' + escapeHtml(camp.name) + '</div>';
+  html += '<div class="card-subtitle">' + formatDate(camp.start_date) + ' al ' + formatDate(camp.end_date) + ' &bull; ' + filteredPubs.length + ' publicaciones</div></div>';
+  html += '<div style="display:flex;gap:8px;align-items:center">';
+  html += '<select id="calendarChannelFilter" onchange="calChangeFilter(this.value)" style="width:auto;padding:6px 10px;font-size:12px"><option value="">Todos los canales</option>';
+  for (var j = 0; j < allChannels.length; j++) {
+    html += '<option value="' + allChannels[j] + '"' + (filter === allChannels[j] ? ' selected' : '') + '>' + allChannels[j] + '</option>';
+  }
+  html += '</select>';
+  html += '<button class="btn btn-sm btn-secondary" onclick="calChangeView(\'list\')">&#9776; Lista</button>';
+  html += '<button class="btn btn-sm btn-primary" onclick="calChangeView(\'month\')">&#9632; Mes</button>';
+  html += '</div></div>';
+
+  // Navegación de mes
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:16px">';
+  html += '<button class="btn btn-sm btn-secondary" onclick="calPrevMonth()">&#8592; Anterior</button>';
+  html += '<div style="font-size:16px;font-weight:700">' + monthNames[month] + ' ' + year + '</div>';
+  html += '<button class="btn btn-sm btn-secondary" onclick="calNextMonth()">Siguiente &#8594;</button>';
+  html += '</div>';
+
+  // Leyenda de canales
+  if (allChannels.length > 0) {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    for (var li = 0; li < allChannels.length; li++) {
+      var lc = allChannels[li];
+      var lcol = channelColors[lc] || 'var(--primary)';
+      html += '<div style="display:flex;align-items:center;gap:4px;font-size:11px">';
+      html += '<div style="width:10px;height:10px;border-radius:50%;background:' + lcol + '"></div>';
+      html += '<span>' + escapeHtml(lc) + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  // Grid del calendario
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:16px">';
+  // Cabecera de días
+  for (var d = 0; d < 7; d++) {
+    html += '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--text-muted);padding:6px 0">' + dayNames[d] + '</div>';
+  }
+  // Celdas vacías antes del primer día
+  for (var e = 0; e < firstDay; e++) {
+    html += '<div style="min-height:80px"></div>';
+  }
+  // Días del mes
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    var dayPubs = byDate[dateStr] || [];
+    var isToday = (new Date().toISOString().split('T')[0] === dateStr);
+    var isSelected = (calState.selectedDate === dateStr);
+    var hasPubs = dayPubs.length > 0;
+
+    var cellStyle = 'min-height:80px;padding:4px;border-radius:6px;border:1px solid ' + (isSelected ? 'var(--ccs-azul-oscuro)' : (hasPubs ? 'var(--border)' : 'transparent')) + ';background:' + (isSelected ? 'rgba(13,61,166,0.08)' : (hasPubs ? 'var(--bg-card)' : 'transparent')) + ';cursor:' + (hasPubs ? 'pointer' : 'default') + ';transition:all 0.15s;position:relative';
+
+    html += '<div style="' + cellStyle + '"' + (hasPubs ? ' onclick="calSelectDate(\'' + dateStr + '\')"' : '') + '>';
+    html += '<div style="font-size:12px;font-weight:' + (isToday ? '800' : '600') + ';color:' + (isToday ? 'var(--ccs-verde)' : 'var(--text-main)') + ';margin-bottom:4px">' + day + '</div>';
+
+    // Mostrar puntos de publicaciones por canal (máx 4 visibles)
+    var shown = Math.min(dayPubs.length, 4);
+    for (var pi = 0; pi < shown; pi++) {
+      var pc = dayPubs[pi].channel || '';
+      var pcol = channelColors[pc] || 'var(--primary)';
+      html += '<div style="font-size:10px;padding:1px 4px;border-radius:3px;background:' + pcol + '20;color:' + pcol + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px">' + escapeHtml(pc) + '</div>';
+    }
+    if (dayPubs.length > 4) {
+      html += '<div style="font-size:10px;color:var(--text-muted)">+' + (dayPubs.length - 4) + ' más</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Panel de publicaciones del día seleccionado
+  html += '<div id="calDayPanel">';
+  if (calState.selectedDate) {
+    var selPubs = byDate[calState.selectedDate] || [];
+    html += renderCalDayPanel(calState.selectedDate, selPubs);
+  }
+  html += '</div>';
+
+  html += '</div>'; // /card
+  content.innerHTML = html;
+  content.setAttribute('data-publications', JSON.stringify(filteredPubs));
+}
+
+function renderCalDayPanel(dateStr, pubs) {
+  if (pubs.length === 0) return '';
+  var channelColors = {Instagram: '#e1306c', LinkedIn: '#0077b5', WhatsApp: '#25d366', Facebook: '#1877f2', Twitter: '#1da1f2', TikTok: '#010101'};
+  var html = '<div style="border-top:1px solid var(--border);padding-top:16px">';
+  html += '<div style="font-size:14px;font-weight:700;margin-bottom:12px">Publicaciones del ' + dateStr + ' (' + pubs.length + ')</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:8px">';
+  for (var i = 0; i < pubs.length; i++) {
+    var pub = pubs[i];
+    var pc = pub.channel || '';
+    var pcol = (channelColors[pc] || 'var(--primary)');
+    html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-base);border:1px solid var(--border);border-left:3px solid ' + pcol + ';border-radius:8px;cursor:pointer" onclick="openPubEditor(\'' + pub.id + '\')">';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    html += '<span style="font-size:11px;font-weight:700;color:' + pcol + '">' + escapeHtml(pc) + '</span>';
+    html += '<span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(pub.stage || '') + '</span>';
+    html += '<span class="brand-status ' + getPubStatusClass(pub.status) + '" style="margin-left:auto">' + getPubStatusLabel(pub.status) + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml((pub.text || '').substring(0, 140)) + '</div>';
+    if (pub.hashtags && pub.hashtags.length > 0) {
+      html += '<div style="font-size:11px;color:var(--primary);margin-top:4px">' + pub.hashtags.slice(0, 4).join(' ') + '</div>';
+    }
+    html += '</div>';
+    html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openPubEditor(\'' + pub.id + '\')" style="flex-shrink:0">Editar</button>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function calSelectDate(dateStr) {
+  calState.selectedDate = (calState.selectedDate === dateStr) ? null : dateStr;
+  renderCalendar();
+}
+
+function calPrevMonth() {
+  calState.month--;
+  if (calState.month < 0) { calState.month = 11; calState.year--; }
+  calState.selectedDate = null;
+  renderCalendar();
+}
+
+function calNextMonth() {
+  calState.month++;
+  if (calState.month > 11) { calState.month = 0; calState.year++; }
+  calState.selectedDate = null;
+  renderCalendar();
+}
+
+function calChangeFilter(val) {
+  calState.channelFilter = val;
+  calState.selectedDate = null;
+  renderCalendar();
+}
+
+function calChangeView(view) {
+  if (view === 'list') {
+    var content = document.getElementById('calendarContent');
+    var camp = state.activeCampaign;
+    var pubs = calState.allPubs;
+    var filter = calState.channelFilter;
+    var filtered = filter ? pubs.filter(function(p) { return p.channel === filter; }) : pubs;
+    var html = '<div class="card">';
+    html += '<div class="card-header"><div><div class="card-title">Campaña: ' + escapeHtml(camp.name) + '</div>';
+    html += '<div class="card-subtitle">' + filtered.length + ' publicaciones</div></div>';
+    html += '<button class="btn btn-sm btn-primary" onclick="renderCalendar()">&#9632; Mes</button>';
+    html += '</div>';
+    html += renderPublicationsList(filtered);
+    html += '</div>';
+    content.innerHTML = html;
+  } else {
+    renderCalendar();
+  }
+}
+
+function renderPublicationsList(publications) {
+  if (publications.length === 0) {
+    return '<div class="empty-state" style="padding:32px 0"><div class="empty-title">Sin publicaciones</div><div class="empty-desc">La campaña aún está generando publicaciones o no hay resultados para el filtro seleccionado</div></div>';
+  }
+
+  var html = '<div style="display:flex;flex-direction:column;gap:8px">';
+  for (var i = 0; i < publications.length; i++) {
+    var pub = publications[i];
+    var channelClass = (pub.channel || '').toLowerCase().replace(' ', '');
+    html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;cursor:pointer" onclick="openPubEditor(\'' + pub.id + '\')">';
+    html += '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px">';
+    html += '<span class="calendar-pub ' + channelClass + '" style="font-size:10px;padding:3px 8px;border-radius:20px;white-space:nowrap">' + escapeHtml(pub.channel || '') + '</span>';
+    html += '<span style="font-size:10px;color:var(--text-muted)">' + escapeHtml((pub.scheduled_at || '').split(' ')[0]) + '</span>';
+    html += '</div>';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:2px">' + escapeHtml(pub.stage || '') + '</div>';
+    html += '<div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml((pub.text || '').substring(0, 120)) + '</div>';
+    if (pub.hashtags && pub.hashtags.length > 0) {
+      html += '<div style="font-size:11px;color:var(--primary);margin-top:4px">' + pub.hashtags.slice(0, 3).join(' ') + '</div>';
+    }
+    html += '</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">';
+    html += '<span class="brand-status ' + getPubStatusClass(pub.status) + '">' + getPubStatusLabel(pub.status) + '</span>';
+    html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openPubEditor(\'' + pub.id + '\')">Editar</button>';
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function filterCalendar() {
+  var filter = document.getElementById('calendarChannelFilter').value;
+  var content = document.getElementById('calendarContent');
+  var allPubs = JSON.parse(content.getAttribute('data-publications') || '[]');
+  var filtered = filter ? allPubs.filter(function(p) { return p.channel === filter; }) : allPubs;
+  document.getElementById('calendarPublicationsList').innerHTML = renderPublicationsList(filtered);
+}
+
+function getPubStatusLabel(status) {
+  var labels = {pending: 'Pendiente', ready: 'Lista', published: 'Publicada', omitted: 'Omitida', rescheduled: 'Reprogramada'};
+  return labels[status] || status || 'Pendiente';
+}
+
+function getPubStatusClass(status) {
+  var classes = {pending: 'status-pending', ready: 'status-complete', published: 'status-complete', omitted: 'status-error', rescheduled: 'status-analyzing'};
+  return classes[status] || 'status-pending';
+}
+
+function loadPublicationsView(campaignId) {
+  navigateTo('calendar');
+}
+
+// ============================================================
+// EDITOR DE PUBLICACIÓN
+// ============================================================
+function openPubEditor(pubId) {
+  if (!state.activeCampaign) return;
+
+  fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId))
+    .then(function(r) { return r.json(); })
+    .then(function(pub) {
+      renderPubEditor(pub);
+      openModal('modalPubEditor');
+    })
+    .catch(function(e) {
+      showNotification('Error al cargar publicación: ' + e.message, 'error');
+    });
+}
+
+function closePubEditorNoSave() {
+  closeModal('modalPubEditor');
+}
+
+function renderPubEditor(pub) {
+  document.getElementById('pubEditorTitle').textContent = 'Editar — ' + (pub.channel || '') + ' — ' + (pub.stage || '');
+
+  var channelClass = (pub.channel || '').toLowerCase().replace(' ', '');
+  var hashtags = (pub.hashtags || []).join(' ');
+
+  var html = '<div>';
+  // Preview
+  html += '<div class="pub-preview">';
+  html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">' + escapeHtml(pub.channel || '') + ' Preview</div>';
+  html += '<div class="pub-preview-header">';
+  html += '<div class="pub-preview-avatar"></div>';
+  html += '<div><div class="pub-preview-name">' + escapeHtml(state.activeBrand ? state.activeBrand.name : 'Tu Marca') + '</div>';
+  html += '<div class="pub-preview-handle">@tumarca</div></div>';
+  html += '</div>';
+  // Imagen generada o placeholder
+  html += '<div class="pub-preview-image" id="pubPreviewImageContainer" style="position:relative;overflow:hidden">';
+  if (pub.generated_image_url) {
+    html += '<img src="' + escapeHtml(pub.generated_image_url) + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />';
+  } else {
+    html += '<span id="pubPreviewImagePlaceholder">&#9670; Imagen del post</span>';
+  }
+  html += '</div>';
+  html += '<div class="pub-preview-text" id="previewText">' + escapeHtml(pub.text || '') + '</div>';
+  html += '<div class="pub-preview-hashtags" id="previewHashtags">' + escapeHtml(hashtags) + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Editor
+  html += '<div>';
+  html += '<div style="margin-bottom:4px;font-size:11px;color:var(--text-muted)">Etapa: <strong>' + escapeHtml(pub.stage || '') + '</strong> &bull; Objetivo: <strong>' + escapeHtml(pub.objective || '') + '</strong></div>';
+  html += '<div class="form-group"><label>Texto del post</label>';
+  html += '<textarea id="editPubText" style="min-height:120px" oninput="updatePreview()">' + escapeHtml(pub.text || '') + '</textarea></div>';
+  html += '<div class="form-group"><label>Hashtags</label>';
+  html += '<input type="text" id="editPubHashtags" value="' + escapeHtml(hashtags) + '" oninput="updatePreviewHashtags()" /></div>';
+  html += '<div class="form-group"><label>CTA (Llamada a la acción)</label>';
+  html += '<input type="text" id="editPubCTA" value="' + escapeHtml(pub.cta || '') + '" /></div>';
+  html += '<div class="form-group"><label>Prompt de imagen</label>';
+  html += '<textarea id="editPubImagePrompt" style="min-height:60px">' + escapeHtml(pub.image_prompt || '') + '</textarea></div>';
+
+  // ── Sección de generación con IA (texto e imagen separados) ──
+  html += '<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">';
+  html += '<div style="font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:12px">🤖 Generación con IA</div>';
+
+  // ── PANEL TEXTO ──
+    html += '<div style="background:#FFFFFF;border:1px solid rgba(13,61,166,0.2);border-radius:10px;padding:12px;margin-bottom:12px">';
+  html += '<div style="font-size:12px;font-weight:700;color:var(--ccs-azul);margin-bottom:8px">💬 Texto del post</div>';
+  html += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Genera el texto usando el LLM local (Ollama). Funciona en Windows, macOS y Linux.</div>';
+
+  // Selector de modelo de texto + estado
+  html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">';
+  html += '<select id="editTextModel" style="font-size:12px;flex:1;min-width:160px" onchange="_onTextModelChange(this.value)">';
+  html += '<option value="">Cargando modelos...</option>';
+  html += '</select>';
+  html += '<span id="textModelStatus" style="font-size:10px;color:var(--text-muted);white-space:nowrap"></span>';
+  html += '</div>';
+
+  // Idioma
+  html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">';
+  html += '<label style="font-size:11px;color:var(--text-muted);white-space:nowrap">Idioma:</label>';
+  html += '<select id="editGenLanguage" style="font-size:12px;flex:1">';
+  html += '<option value="es">Español</option>';
+  html += '<option value="en">English</option>';
+  html += '<option value="pt">Português</option>';
+  html += '</select>';
+  html += '</div>';
+
+  // Instrucción adicional para texto
+  html += '<div style="margin-bottom:10px">';
+  html += '<label style="font-size:11px;color:var(--text-muted)">Instrucción adicional (opcional)</label>';
+  html += '<input type="text" id="editGenInstruction" placeholder="Ej: más formal, más corto, estilo minimalista..." style="font-size:12px" />';
+  html += '</div>';
+
+  // Botón generar texto
+  html += '<button class="btn btn-primary btn-sm" id="btnGenerateText" onclick="generateTextWithAI(\'' + pub.id + '\')" style="width:100%">';
+  html += '💬 Generar texto del post</button>';
+  html += '</div>'; // fin panel texto
+
+  // ── PANEL IMAGEN ──
+  html += '<div style="background:var(--bg-card);border:1px solid rgba(168,85,247,0.4);border-radius:10px;padding:12px">';
+  html += '<div style="font-size:12px;font-weight:700;color:#a855f7;margin-bottom:8px">🖼️ Imagen del post</div>';
+
+  // Estado del proveedor de imagen
+  html += '<div id="imageProviderStatus" style="font-size:10px;color:var(--text-muted);margin-bottom:8px;min-height:16px">';
+  html += '<span class="loading-spinner" style="width:8px;height:8px;margin-right:4px"></span>Verificando disponibilidad...</div>';
+
+  // Selector de modelo de imagen
+  html += '<div style="margin-bottom:8px">';
+  html += '<label style="font-size:11px;color:var(--text-muted)">Modelo de imagen</label>';
+  html += '<select id="editImageModel" style="font-size:12px" onchange="_onImageModelChange(this.value)">';
+  html += '<option value="embedded">🤖 Motor IA Embebido (LCM Dreamshaper) — Windows/macOS/Linux</option>';
+  html += '<option value="x/z-image-turbo">🦎 Ollama: z-image-turbo — solo macOS/Linux</option>';
+  html += '<option value="x/flux2-klein">🦎 Ollama: flux2-klein — solo macOS/Linux</option>';
+  html += '</select>';
+  html += '</div>';
+
+  // Prompt de imagen visible y editable aquí también
+  html += '<div style="margin-bottom:10px">';
+  html += '<label style="font-size:11px;color:var(--text-muted)">Prompt de imagen (editable)</label>';
+  html += '<textarea id="editPubImagePromptInline" style="min-height:60px;font-size:12px" placeholder="Describe la imagen que quieres generar...">' + escapeHtml(pub.image_prompt || '') + '</textarea>';
+  html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Este prompt también se actualiza en el campo &quot;Prompt de imagen&quot; de arriba.</div>';
+  html += '</div>';
+
+  // Botones de imagen
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  html += '<button class="btn btn-sm" id="btnGenerateImage" onclick="generateImageWithAI(\'' + pub.id + '\')" style="flex:1;background:#7c3aed;color:#fff;border:none;min-width:140px">';
+  html += '🖼️ Generar imagen con IA</button>';
+  html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;flex:1;min-width:140px;text-align:center" title="Cargar imagen desde tu computadora">';
+  html += '📂 Cargar desde disco';
+  html += '<input type="file" id="uploadImageInput" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml" style="display:none" onchange="uploadImageManually(\'' + pub.id + '\', \'' + (state.activeCampaign ? state.activeCampaign.id : '') + '\')"/>';
+  html += '</label>';
+  html += '</div>';
+
+  html += '</div>'; // fin panel imagen
+  html += '</div>'; // fin sección generación
+  // ── fin sección generación ──
+
+  // Cargar modelos de texto y estado de imagen en background
+  setTimeout(function() {
+    _loadTextModels();
+    _loadImageProviderStatus();
+    // Sincronizar prompt inline con el campo principal
+    var inlinePrompt = document.getElementById('editPubImagePromptInline');
+    var mainPrompt = document.getElementById('editPubImagePrompt');
+    if (inlinePrompt && mainPrompt) {
+      inlinePrompt.addEventListener('input', function() { mainPrompt.value = inlinePrompt.value; });
+      mainPrompt.addEventListener('input', function() { inlinePrompt.value = mainPrompt.value; });
+    }
+  }, 100);
+
+  html += '<div class="form-group"><label>Estado de publicación</label>';
+  html += '<select id="editPubStatus">';
+  var statuses = [{v:'pending',l:'Pendiente'},{v:'ready',l:'Lista para publicar'},{v:'published',l:'Publicada'},{v:'omitted',l:'Omitida'},{v:'rescheduled',l:'Reprogramada'}];
+  for (var i = 0; i < statuses.length; i++) {
+    html += '<option value="' + statuses[i].v + '"' + (pub.status === statuses[i].v ? ' selected' : '') + '>' + statuses[i].l + '</option>';
+  }
+  html += '</select></div>';
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  html += '<button class="btn btn-primary btn-sm" onclick="savePubEdits(\'' + pub.id + '\')">Guardar cambios</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="copyPubText()">Copiar texto</button>';
+  html += '</div>';
+  html += '</div>';
+
+  document.getElementById('pubEditorContent').innerHTML = html;
+  document.getElementById('pubEditorContent').setAttribute('data-pub-id', pub.id);
+}
+
+function updatePreview() {
+  var text = document.getElementById('editPubText');
+  var preview = document.getElementById('previewText');
+  if (text && preview) preview.textContent = text.value;
+}
+
+function updatePreviewHashtags() {
+  var input = document.getElementById('editPubHashtags');
+  var preview = document.getElementById('previewHashtags');
+  if (input && preview) preview.textContent = input.value;
+}
+
+function savePubEdits(pubId) {
+  var text = document.getElementById('editPubText').value;
+  var hashtagsRaw = document.getElementById('editPubHashtags').value;
+  var hashtags = hashtagsRaw.split(/\s+/).filter(function(h) { return h.startsWith('#'); });
+  var cta = document.getElementById('editPubCTA').value;
+  var imagePrompt = document.getElementById('editPubImagePrompt').value;
+  var status = document.getElementById('editPubStatus').value;
+
+  var payload = {text: text, hashtags: hashtags, cta: cta, image_prompt: imagePrompt, status: status};
+
+  fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      showNotification('Publicación guardada correctamente', 'success');
+      closeModal('modalPubEditor');
+      loadCalendar();
+    })
+    .catch(function(e) {
+      showNotification('Error al guardar: ' + e.message, 'error');
+    });
+}
+
+function regeneratePub(pubId) {
+  // Mantenido por compatibilidad — ahora se usa generateWithAI()
+  generateWithAI(pubId);
+}
+
+/**
+ * Genera solo el TEXTO del post usando Ollama.
+ * Llamado desde el botón del panel de texto.
+ */
+function generateTextWithAI(pubId) {
+  var model = (document.getElementById('editTextModel') || {}).value || '';
+  var instruction = (document.getElementById('editGenInstruction') || {}).value || '';
+  var language = (document.getElementById('editGenLanguage') || {}).value || 'es';
+
+  var btn = document.getElementById('btnGenerateText');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando texto...'; }
+
+  var payload = {
+    target: 'text',
+    instruction: instruction,
+    language: language,
+    model: model || undefined,
+  };
+
+  fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/regenerate'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json; charset=utf-8'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (btn) { btn.disabled = false; btn.textContent = '💬 Generar texto del post'; }
+      if (data.text) {
+        var ta = document.getElementById('editPubText');
+        if (ta) { ta.value = data.text; updatePreview(); }
+        if (data.hashtags) {
+          var ht = document.getElementById('editPubHashtags');
+          if (ht) { ht.value = data.hashtags.join(' '); updatePreviewHashtags(); }
+        }
+        showNotification('✅ Texto generado correctamente', 'success');
+      } else {
+        showNotification('Error: ' + (data.detail || 'No se pudo generar el texto'), 'error');
+      }
+    })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '💬 Generar texto del post'; }
+      showNotification('Error al generar texto: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Genera solo la IMAGEN del post usando el motor de imagen seleccionado.
+ * Llamado desde el botón del panel de imagen.
+ */
+function generateImageWithAI(pubId) {
+  var imageModel = (document.getElementById('editImageModel') || {}).value || 'embedded';
+  // Leer prompt desde el campo inline del panel de imagen
+  var promptEl = document.getElementById('editPubImagePromptInline') || document.getElementById('editPubImagePrompt');
+  var imagePrompt = promptEl ? promptEl.value.trim() : '';
+
+  var btn = document.getElementById('btnGenerateImage');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando imagen...'; }
+
+  var payload = {
+    target: 'image',
+    image_model: imageModel,
+    image_prompt: imagePrompt || undefined,
+  };
+
+  fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/generate-image'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json; charset=utf-8'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (btn) { btn.disabled = false; btn.textContent = '🖼️ Generar imagen con IA'; }
+      if (data.image_url) {
+        var container = document.getElementById('pubPreviewImageContainer');
+        if (container) {
+          container.innerHTML = '<img src="' + escapeHtml(data.image_url) + '?t=' + Date.now() + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />';
+        }
+        if (data.warning) {
+          showNotification('⚠️ ' + data.warning, 'info');
+        } else {
+          showNotification('✅ Imagen generada correctamente', 'success');
+        }
+      } else {
+        showNotification('Error: ' + (data.detail || 'No se pudo generar la imagen'), 'error');
+      }
+    })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '🖼️ Generar imagen con IA'; }
+      showNotification('Error al generar imagen: ' + e.message, 'error');
+    });
+}
+
+// generateWithAI: compatibilidad con código anterior (dispatcher)
+function generateWithAI(pubId) {
+  var targetEl = document.getElementById('editGenTarget');
+  var imageModelEl = document.getElementById('editImageModel');
+  var textModelEl = document.getElementById('editTextModel');
+  var instrEl = document.getElementById('editGenInstruction');
+  var langEl = document.getElementById('editGenLanguage');
+  var btn = document.getElementById('btnGenerate');
+
+  var target = targetEl ? targetEl.value : 'text';
+  var imageModel = imageModelEl ? imageModelEl.value : 'embedded';
+  var textModel = textModelEl ? textModelEl.value : (window._activeTextModel || '');
+  var instruction = instrEl ? instrEl.value.trim() : '';
+  var language = langEl ? langEl.value : 'es';
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Generando...'; }
+
+  if (target === 'image') {
+    // Generar imagen
+    var imagePrompt = document.getElementById('editPubImagePrompt');
+    var promptText = imagePrompt ? imagePrompt.value.trim() : '';
+    if (!promptText) {
+      showNotification('Escribe un prompt de imagen antes de generar', 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
+      return;
+    }
+    showNotification('Generando imagen con ' + imageModel + '... (puede tardar 1-2 min si se descarga el modelo)', 'info');
+    var url = apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/generate-image');
+    fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image_prompt: promptText, model: imageModel, instruction: instruction}),
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
+        if (data.success && (data.image_b64 || data.image_url)) {
+          // Determinar MIME type según el método de generación
+          var isSvg = (data.generation_method === 'placeholder_svg') ||
+                      (data.image_url && data.image_url.indexOf('.svg') !== -1);
+          var mimeType = isSvg ? 'image/svg+xml' : 'image/png';
+
+          // Preferir base64 directo (evita problemas de URL relativa/absoluta)
+          var displaySrc;
+          if (data.image_b64) {
+            displaySrc = 'data:' + mimeType + ';base64,' + data.image_b64;
+          } else {
+            var ts = Date.now();
+            var imgPath = data.image_url.split('?')[0];
+            displaySrc = window.location.origin + imgPath + '?t=' + ts;
+          }
+
+          // Actualizar preview dentro del modal
+          var container = document.getElementById('pubPreviewImageContainer');
+          if (container) {
+            var img = document.createElement('img');
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px';
+            img.onerror = function() {
+              container.innerHTML = '<span style="color:#ef4444">Error al cargar imagen</span>';
+            };
+            img.onload = function() {
+              if (isSvg) {
+                // Mostrar aviso de placeholder con opción de subir imagen real
+                var warningBar = document.createElement('div');
+                warningBar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:#fbbf24;font-size:10px;padding:4px 8px;text-align:center;border-radius:0 0 8px 8px';
+                warningBar.innerHTML = '⚠️ Placeholder — Cargá una imagen real desde disco';
+                container.appendChild(warningBar);
+                showNotification('⚠️ ' + (data.warning || 'Placeholder generado. Podés reemplazarlo cargando una imagen desde disco.'), 'warning');
+              } else {
+                showNotification('\u2705 Imagen generada con ' + (data.generation_method || 'IA'), 'success');
+              }
+            };
+            img.src = displaySrc;
+            container.innerHTML = '';
+            container.style.position = 'relative';
+            container.appendChild(img);
+          }
+
+          // Guardar URL en el estado local
+          if (data.image_url && state.activeCampaign) {
+            var pubs = (state.activeCampaign.publications || []);
+            for (var i = 0; i < pubs.length; i++) {
+              if (pubs[i].id === pubId) {
+                pubs[i].generated_image_url = data.image_url.split('?')[0];
+                break;
+              }
+            }
+          }
+
+          // Actualizar miniatura en el calendario
+          var calImg = document.querySelector('[data-pub-id="' + pubId + '"] .pub-cal-image');
+          if (calImg) { calImg.src = displaySrc; }
+
+        } else {
+          var errMsg = data.error || 'No se pudo generar la imagen';
+          showNotification(errMsg, 'error');
+          if (data.debug) { console.warn('Image gen debug:', data.debug); }
+          console.error('Image gen error:', data);
+        }
+      })
+      .catch(function(e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
+        showNotification('Error al generar imagen: ' + e.message, 'error');
+      });
+  } else {
+    // Regenerar texto
+    var modelLabel = textModel ? textModel : 'modelo activo';
+    showNotification('💬 Regenerando texto con ' + modelLabel + '...', 'info');
+    var url2 = apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/regenerate');
+    var params = [];
+    if (instruction) params.push('instruction=' + encodeURIComponent(instruction));
+    if (language) params.push('language=' + encodeURIComponent(language));
+    if (textModel) params.push('model=' + encodeURIComponent(textModel));
+    if (params.length > 0) url2 += '?' + params.join('&');
+    fetch(url2, {method: 'POST'})
+      .then(function(r) { return r.json(); })
+      .then(function(pub) {
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
+        showNotification('Texto regenerado correctamente', 'success');
+        renderPubEditor(pub);
+      })
+      .catch(function(e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
+        showNotification('Error al regenerar: ' + e.message, 'error');
+      });
+  }
+}
+
+function copyPubText() {
+  var text = document.getElementById('editPubText');
+  if (text) {
+    navigator.clipboard.writeText(text.value).then(function() {
+      showNotification('Texto copiado al portapapeles', 'success');
+    });
+  }
+}
+
+// ============================================================
+// IMAGEN: CARGA MANUAL Y ESTADO DE PROVEEDORES
+// ============================================================
+
+/**
+ * Carga el estado de los proveedores de imagen y actualiza el panel en el editor.
+ * Se llama automáticamente al abrir el editor de publicación.
+ */
+function _loadImageProviderStatus() {
+  var el = document.getElementById('imageProviderStatus');
+  if (!el) return;
+
+  fetch(apiUrl('/image-providers/status'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var effective = data.effective_provider || 'placeholder_svg';
+      var providers = data.providers || {};
+      var icons = {
+        embedded_diffusers: '\uD83E\uDD16',  // 🤖
+        ollama: '\uD83E\uDD99',
+        automatic1111: '\uD83C\uDFA8',
+        comfyui: '\u2728',
+        placeholder_svg: '\uD83D\uDDBC\uFE0F'
+      };
+      var labels = {
+        embedded_diffusers: 'Motor IA Embebido (LCM)',
+        ollama: 'Ollama (macOS/Linux)',
+        automatic1111: 'AUTOMATIC1111',
+        comfyui: 'ComfyUI',
+        placeholder_svg: 'Placeholder SVG'
+      };
+      var colors = {
+        embedded_diffusers: 'var(--ccs-verde)',
+        ollama: '#3b82f6',
+        automatic1111: '#8b5cf6',
+        comfyui: '#a855f7',
+        placeholder_svg: '#f59e0b'
+      };
+
+      var html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      html += '<span style="font-weight:700;color:' + (colors[effective] || '#888') + ';font-size:12px">';
+      html += (icons[effective] || '') + ' ' + (labels[effective] || effective) + '</span>';
+
+      // Estado del motor embebido
+      var embeddedInfo = providers.embedded_diffusers || {};
+      var engineState = (embeddedInfo.engine_status || {}).state || 'idle';
+      if (effective === 'embedded_diffusers') {
+        if (engineState === 'ready') {
+          html += '<span style="color:var(--ccs-verde);font-size:10px">✅ Listo</span>';
+        } else if (engineState === 'loading') {
+          var progress = (embeddedInfo.engine_status || {}).progress || 0;
+          var msg = (embeddedInfo.engine_status || {}).message || 'Cargando...';
+          html += '<span style="color:#f59e0b;font-size:10px"><span class="loading-spinner" style="width:10px;height:10px"></span> ' + progress + '% — ' + msg + '</span>';
+          // Polling para actualizar el estado
+          setTimeout(function() { _loadImageProviderStatus(); }, 3000);
+        } else if (engineState === 'idle') {
+          html += '<button onclick="_loadEmbeddedEngine()" class="btn btn-sm" style="font-size:10px;padding:2px 8px;background:var(--ccs-verde);color:white;border:none;border-radius:4px;cursor:pointer">';
+          html += '\u25B6 Cargar motor</button>';
+        } else if (engineState === 'error') {
+          html += '<span style="color:#ef4444;font-size:10px">❌ Error: ' + ((embeddedInfo.engine_status || {}).error || 'desconocido') + '</span>';
+        }
+      }
+
+      // Mostrar modelo activo
+      if (effective === 'embedded_diffusers' && embeddedInfo.model) {
+        var modelShort = embeddedInfo.model.split('/').pop();
+        html += '<span style="color:var(--text-muted);font-size:10px">Modelo: ' + modelShort + '</span>';
+      }
+
+      html += '</div>';
+
+      // Segunda línea: modelos disponibles si es motor embebido
+      if (effective === 'embedded_diffusers' && embeddedInfo.available_models && embeddedInfo.available_models.length > 0) {
+        html += '<div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+        html += '<span style="font-size:10px;color:var(--text-muted)">Modelo:</span>';
+        html += '<select id="diffusionModelSelect" style="font-size:10px;padding:2px 4px" onchange="_changeDiffusionModel(this.value)">';
+        var models = embeddedInfo.available_models;
+        var currentModel = embeddedInfo.model || '';
+        for (var mi = 0; mi < models.length; mi++) {
+          var m = models[mi];
+          html += '<option value="' + m.id + '"' + (m.id === currentModel ? ' selected' : '') + '>';
+          html += m.name + ' (' + m.speed + ', ' + m.ram_gb + 'GB RAM)';
+          html += '</option>';
+        }
+        html += '</select>';
+        html += '</div>';
+      }
+
+      // Mostrar links de instalación si solo placeholder está disponible
+      if (effective === 'placeholder_svg') {
+        html += '<div style="margin-top:6px;font-size:10px;color:var(--text-muted)">';
+        html += '⚠️ Motor IA no disponible. Instala las dependencias: ';
+        html += '<code style="background:var(--bg-card);padding:1px 4px;border-radius:3px">pip install torch diffusers transformers accelerate</code>';
+        html += '</div>';
+      }
+
+      el.innerHTML = html;
+    })
+    .catch(function() {
+      el.innerHTML = '<span style="color:var(--text-muted)">No se pudo verificar proveedores de imagen</span>';
+    });
+}
+
+/** Inicia la carga del motor de imagen embebido en background. */
+function _loadEmbeddedEngine() {
+  var el = document.getElementById('imageProviderStatus');
+  if (el) el.innerHTML = '<span class="loading-spinner" style="width:10px;height:10px"></span> Iniciando carga del motor de imagen...';
+
+  fetch(apiUrl('/image-engine/load'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({})
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      showNotification('🤖 Motor de imagen iniciando... (puede tardar 2-5 min la primera vez)', 'info');
+      // Iniciar polling del estado
+      setTimeout(function() { _loadImageProviderStatus(); }, 3000);
+    })
+    .catch(function(e) {
+      showNotification('Error al iniciar motor: ' + e.message, 'error');
+    });
+}
+
+/** Cambia el modelo de difusión activo. */
+function _changeDiffusionModel(modelId) {
+  fetch(apiUrl('/config'), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({diffusion_model: modelId})
+  })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      showNotification('Modelo cambiado a ' + modelId.split('/').pop() + '. Se cargará al generar la próxima imagen.', 'info');
+    })
+    .catch(function(e) {
+      showNotification('Error al cambiar modelo: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Carga la lista de modelos de texto disponibles en Ollama y rellena el selector.
+ * También selecciona el modelo activo configurado.
+ */
+function _loadTextModels() {
+  var sel = document.getElementById('editTextModel');
+  var statusEl = document.getElementById('textModelStatus');
+  if (!sel) return;
+
+  fetch(apiUrl('/ollama/status'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var models = data.models || [];
+      var activeModel = (window._activeTextModel || '');
+
+      // Obtener modelo activo de config si no está en memoria
+      return fetch(apiUrl('/config'))
+        .then(function(r) { return r.json(); })
+        .then(function(cfg) {
+          activeModel = cfg.default_model || (models.length > 0 ? models[0] : '');
+          window._activeTextModel = activeModel;
+
+          if (models.length === 0) {
+            sel.innerHTML = '<option value="">Sin modelos instalados en Ollama</option>';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">⚠️ Ollama sin modelos</span>';
+            return;
+          }
+
+          // Filtrar modelos de imagen (no texto) del selector de texto
+          var imageModelPatterns = /image|flux|dall|sdxl|stable.diff|lcm|turbo.*img/i;
+          var textModels = models.filter(function(m) { return !imageModelPatterns.test(m); });
+          if (textModels.length === 0) textModels = models; // fallback: mostrar todos
+
+          var optHtml = '';
+          for (var i = 0; i < textModels.length; i++) {
+            var m = textModels[i];
+            var selected = (m === activeModel || m.split(':')[0] === activeModel.split(':')[0]) ? ' selected' : '';
+            optHtml += '<option value="' + m + '"' + selected + '>' + m + '</option>';
+          }
+          sel.innerHTML = optHtml;
+
+          if (statusEl) {
+            var available = data.available;
+            statusEl.innerHTML = available
+              ? '<span style="color:var(--ccs-verde)">✅ Ollama activo</span>'
+              : '<span style="color:#ef4444">❌ Ollama no disponible</span>';
+          }
+        });
+    })
+    .catch(function() {
+      sel.innerHTML = '<option value="">Error al cargar modelos</option>';
+      if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">❌ Error</span>';
+    });
+}
+
+/** Actualiza el modelo de texto activo cuando el usuario cambia el selector. */
+function _onTextModelChange(model) {
+  if (!model) return;
+  window._activeTextModel = model;
+  // Actualizar config en el servidor
+  fetch(apiUrl('/config'), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({default_model: model})
+  })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      var statusEl = document.getElementById('textModelStatus');
+      if (statusEl) {
+        statusEl.innerHTML = '<span style="color:var(--ccs-verde)">✅ ' + model + '</span>';
+        setTimeout(function() {
+          statusEl.innerHTML = '<span style="color:var(--ccs-verde)">✅ Ollama activo</span>';
+        }, 2000);
+      }
+    })
+    .catch(function(e) {
+      showNotification('Error al cambiar modelo de texto: ' + e.message, 'error');
+    });
+}
+
+/** Actualiza el selector de imagen y muestra información contextual según el modelo elegido. */
+function _onImageModelChange(model) {
+  var statusEl = document.getElementById('imageProviderStatus');
+  if (!statusEl) return;
+
+  if (model === 'embedded') {
+    statusEl.innerHTML = '🤖 <strong>Motor IA Embebido</strong> — Genera imágenes localmente. Funciona en <strong>Windows, macOS y Linux</strong>. La primera vez descarga el modelo (~2GB).';
+  } else if (model.startsWith('x/') || model.startsWith('ollama')) {
+    statusEl.innerHTML = '🦙 <strong>Ollama</strong> — Generación de imágenes vía Ollama. Disponible en <strong>macOS y Linux</strong>. En Windows puede no funcionar.';
+  } else {
+    statusEl.innerHTML = '🖼️ Modelo personalizado: ' + model;
+  }
+}
+
+/**
+ * Sube una imagen desde el disco del usuario y la asocia a la publicación.
+ * @param {string} pubId - ID de la publicación
+ * @param {string} campaignId - ID de la campaña
+ */
+function uploadImageManually(pubId, campaignId) {
+  var input = document.getElementById('uploadImageInput');
+  if (!input || !input.files || !input.files[0]) return;
+
+  var file = input.files[0];
+  var maxSize = 10 * 1024 * 1024; // 10 MB
+  if (file.size > maxSize) {
+    showNotification('El archivo es demasiado grande. Máximo 10 MB.', 'error');
+    return;
+  }
+
+  // Mostrar preview inmediato con FileReader (antes de subir)
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var container = document.getElementById('pubPreviewImageContainer');
+    if (container) {
+      var img = document.createElement('img');
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px';
+      img.src = e.target.result;
+      container.innerHTML = '';
+      container.appendChild(img);
+    }
+  };
+  reader.readAsDataURL(file);
+
+  // Subir al servidor
+  var formData = new FormData();
+  formData.append('file', file);
+
+  var uploadUrl = apiUrl('/campaigns/' + campaignId + '/publications/' + pubId + '/upload-image');
+  showNotification('Subiendo imagen...', 'info');
+
+  fetch(uploadUrl, { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showNotification('\u2705 Imagen cargada correctamente', 'success');
+
+        // Actualizar estado local
+        if (state.activeCampaign) {
+          var pubs = state.activeCampaign.publications || [];
+          for (var i = 0; i < pubs.length; i++) {
+            if (pubs[i].id === pubId) {
+              pubs[i].generated_image_url = data.image_url.split('?')[0];
+              break;
+            }
+          }
+        }
+
+        // Actualizar miniatura en el calendario
+        var container = document.getElementById('pubPreviewImageContainer');
+        if (container) {
+          var ts = Date.now();
+          var imgPath = data.image_url.split('?')[0];
+          var src = window.location.origin + imgPath + '?t=' + ts;
+          var img = document.createElement('img');
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px';
+          img.src = src;
+          container.innerHTML = '';
+          container.appendChild(img);
+        }
+
+        var calImg = document.querySelector('[data-pub-id="' + pubId + '"] .pub-cal-image');
+        if (calImg && data.image_url) {
+          calImg.src = window.location.origin + data.image_url.split('?')[0] + '?t=' + Date.now();
+        }
+      } else {
+        showNotification('Error al subir imagen: ' + (data.detail || data.error || 'Error desconocido'), 'error');
+      }
+    })
+    .catch(function(e) {
+      showNotification('Error al subir imagen: ' + e.message, 'error');
+    });
+
+  // Limpiar el input para permitir subir el mismo archivo de nuevo
+  input.value = '';
+}
+
+// ============================================================
+// AGENTES
+// ============================================================
+function loadAgents() {
+  var content = document.getElementById('agentsContent');
+
+  fetch(apiUrl('/agents'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      renderAgents(data.agents || []);
+    })
+    .catch(function(e) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+    });
+}
+
+function renderAgents(agents) {
+  var content = document.getElementById('agentsContent');
+
+  var html = '<div style="display:flex;flex-direction:column;gap:20px">';
+  for (var i = 0; i < agents.length; i++) {
+    var a = agents[i];
+    var agentId = a.id;
+    var skills = a.skills || [];
+    var skillContents = a.skill_contents || {};
+
+    html += '<div class="card">';
+    // Cabecera del agente
+    html += '<div class="card-header" style="align-items:flex-start">';
+    html += '<div>';
+    html += '<div class="card-title" style="font-size:16px">' + escapeHtml(a.name) + '</div>';
+    html += '<div class="card-subtitle" style="margin-top:4px">' + escapeHtml(a.description || '') + '</div>';
+    html += '</div>';
+    html += '<span class="brand-status status-complete" style="flex-shrink:0">' + escapeHtml(a.role || '') + '</span>';
+    html += '</div>';
+
+    // Modelo y temperatura
+    html += '<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">';
+    html += '<div>';
+    html += '<label>Modelo</label>';
+    html += '<input type="text" id="model_' + agentId + '" value="' + escapeHtml(a.model || '') + '" style="width:220px" />';
+    html += '</div>';
+    html += '<div>';
+    html += '<label>Temperatura</label>';
+    html += '<input type="number" id="temp_' + agentId + '" value="' + (a.temperature || 0.7) + '" min="0" max="2" step="0.1" style="width:80px" />';
+    html += '</div>';
+    html += '</div>';
+
+    // System Prompt
+    html += '<div style="margin-bottom:16px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<label style="margin:0">System Prompt</label>';
+    html += '<button class="btn btn-sm btn-primary" onclick="saveAgentPrompt(\'' + agentId + '\')">Guardar prompt</button>';
+    html += '</div>';
+    html += '<textarea id="prompt_' + agentId + '" style="min-height:180px;font-size:12px;font-family:monospace;line-height:1.5">' + escapeHtml(a.system_prompt || '') + '</textarea>';
+    html += '</div>';
+
+    // Skills editables
+    if (skills.length > 0) {
+      html += '<div>';
+      html += '<label style="margin-bottom:8px;display:block">Skills (' + skills.length + ')</label>';
+      html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">';
+      for (var si = 0; si < skills.length; si++) {
+        var sname = skills[si];
+        html += '<button class="btn btn-sm" style="background:rgba(13,86,202,0.08);color:var(--ccs-azul);border:1px solid rgba(13,86,202,0.2)" onclick="toggleSkillEditor(\'' + agentId + '\',\'' + sname + '\')">&#9998; ' + escapeHtml(sname) + '</button>';
+      }
+      html += '</div>';
+
+      // Editores de skills (ocultos por defecto)
+      for (var sk = 0; sk < skills.length; sk++) {
+        var skillName = skills[sk];
+        var skillContent = skillContents[skillName] || '';
+        html += '<div id="skillEditor_' + agentId + '_' + skillName + '" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+        html += '<div style="font-size:12px;font-weight:700;color:var(--ccs-azul)">' + escapeHtml(skillName) + '.md</div>';
+        html += '<div style="display:flex;gap:6px">';
+        html += '<button class="btn btn-sm btn-primary" onclick="saveSkillContent(\'' + agentId + '\',\'' + skillName + '\')">Guardar skill</button>';
+        html += '<button class="btn btn-sm btn-secondary" onclick="toggleSkillEditor(\'' + agentId + '\',\'' + skillName + '\')" >Cerrar</button>';
+        html += '</div></div>';
+        if (skillContent) {
+          html += '<textarea id="skill_' + agentId + '_' + skillName + '" style="min-height:200px;font-size:11px;font-family:monospace;line-height:1.5">' + escapeHtml(skillContent) + '</textarea>';
+        } else {
+          html += '<div style="color:var(--text-muted);font-size:12px;padding:8px">Skill no encontrado en disco. Puedes escribir el contenido aqui para crearlo.</div>';
+          html += '<textarea id="skill_' + agentId + '_' + skillName + '" style="min-height:200px;font-size:11px;font-family:monospace;line-height:1.5" placeholder="Escribe el contenido del skill aqui..."></textarea>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '</div>'; // /card
+  }
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+function toggleSkillEditor(agentId, skillName) {
+  var el = document.getElementById('skillEditor_' + agentId + '_' + skillName);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+}
+
+function saveSkillContent(agentId, skillName) {
+  var el = document.getElementById('skill_' + agentId + '_' + skillName);
+  if (!el) return;
+  var content = el.value;
+  fetch(apiUrl('/agents/' + agentId + '/skills/' + skillName), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: content}),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      showNotification('Skill "' + skillName + '" guardado correctamente', 'success');
+    })
+    .catch(function(e) {
+      showNotification('Error al guardar skill: ' + e.message, 'error');
+    });
+}
+
+// Mapa de intervalos de polling de descarga activos: {model: intervalId}
+var _pullPollingIntervals = {};
+
+function saveAgentPrompt(agentId) {
+  var promptEl = document.getElementById('prompt_' + agentId);
+  var modelEl  = document.getElementById('model_' + agentId);
+  var tempEl   = document.getElementById('temp_' + agentId);
+  if (!promptEl) return;
+
+  var newModel = modelEl ? modelEl.value.trim() : '';
+  var payload  = {agent_id: agentId, system_prompt: promptEl.value};
+  if (modelEl)  payload.model       = newModel;
+  if (tempEl)   payload.temperature = parseFloat(tempEl.value) || 0.7;
+
+  fetch(apiUrl('/agents/' + agentId), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var pullStatus = data.pull_status;
+      if (pullStatus && (pullStatus.status === 'pulling' || pullStatus.status === 'queued')) {
+        // El modelo se está descargando — mostrar notificación persistente y polling
+        showNotification(
+          '&#8987; Descargando modelo <strong>' + escapeHtml(newModel) + '</strong>... ' +
+          'Esto puede tardar varios minutos. El agente estará listo cuando termine.',
+          'info'
+        );
+        _startPullPolling(agentId, newModel);
+      } else if (data.model_pull_status === 'pulling') {
+        // Alternativa: campo en el agente
+        showNotification(
+          '&#8987; Descargando modelo <strong>' + escapeHtml(newModel) + '</strong>... ' +
+          'Esto puede tardar varios minutos.',
+          'info'
+        );
+        _startPullPolling(agentId, newModel);
+      } else {
+        showNotification('Agente "' + agentId + '" actualizado correctamente', 'success');
+      }
+    })
+    .catch(function(e) {
+      showNotification('Error: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Inicia un polling periódico para consultar el estado de descarga de un modelo.
+ * Muestra una barra de progreso en el campo del modelo del agente.
+ * Se detiene cuando la descarga termina (done/error) o el modelo ya está disponible.
+ */
+function _startPullPolling(agentId, model) {
+  // Cancelar polling previo para este agente si existe
+  if (_pullPollingIntervals[agentId]) {
+    clearInterval(_pullPollingIntervals[agentId]);
+  }
+
+  // Mostrar indicador visual junto al campo del modelo
+  var modelEl = document.getElementById('model_' + agentId);
+  var pullIndicatorId = 'pullIndicator_' + agentId;
+  if (modelEl && !document.getElementById(pullIndicatorId)) {
+    var indicator = document.createElement('div');
+    indicator.id = pullIndicatorId;
+    indicator.style.cssText = 'margin-top:6px;font-size:11px;color:var(--ccs-azul);display:flex;align-items:center;gap:6px';
+    indicator.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">&#9696;</span>' +
+                          '<span id="pullIndicatorText_' + agentId + '">Iniciando descarga de ' + escapeHtml(model) + '...</span>' +
+                          '<div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden">' +
+                          '<div id="pullBar_' + agentId + '" style="height:100%;width:0%;background:var(--ccs-azul);transition:width 0.5s"></div>' +
+                          '</div>';
+    modelEl.parentNode.appendChild(indicator);
+  }
+
+  var intervalId = setInterval(function() {
+    fetch(apiUrl('/models/pull/' + encodeURIComponent(model) + '/status'))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var status   = data.status || 'unknown';
+        var progress = data.progress || 0;
+        var statusMsg = data.status_msg || '';
+
+        // Actualizar barra de progreso
+        var bar  = document.getElementById('pullBar_' + agentId);
+        var text = document.getElementById('pullIndicatorText_' + agentId);
+        if (bar)  bar.style.width  = progress + '%';
+        if (text) {
+          if (status === 'pulling') {
+            text.textContent = 'Descargando ' + model + '... ' + progress + '%' + (statusMsg ? ' (' + statusMsg + ')' : '');
+          } else if (status === 'done' || status === 'available') {
+            text.textContent = '\u2713 Modelo ' + model + ' listo';
+          } else if (status === 'error') {
+            text.textContent = '\u2717 Error al descargar ' + model + ': ' + (data.error || 'desconocido');
+          }
+        }
+
+        if (status === 'done' || status === 'available') {
+          clearInterval(_pullPollingIntervals[agentId]);
+          delete _pullPollingIntervals[agentId];
+          showNotification('\u2713 Modelo <strong>' + escapeHtml(model) + '</strong> descargado y listo para usar.', 'success');
+          // Remover indicador después de 3 segundos
+          setTimeout(function() {
+            var ind = document.getElementById(pullIndicatorId);
+            if (ind) ind.parentNode.removeChild(ind);
+          }, 3000);
+        } else if (status === 'error') {
+          clearInterval(_pullPollingIntervals[agentId]);
+          delete _pullPollingIntervals[agentId];
+          showNotification('\u2717 Error al descargar modelo <strong>' + escapeHtml(model) + '</strong>: ' + (data.error || 'desconocido'), 'error');
+        }
+      })
+      .catch(function() {
+        // Error de red — ignorar y seguir intentando
+      });
+  }, 3000); // polling cada 3 segundos
+
+  _pullPollingIntervals[agentId] = intervalId;
+}
+
+// ============================================================
+// AUDITORÍA
+// ============================================================
+function loadAudit() {
+  var content = document.getElementById('auditContent');
+
+  fetch(apiUrl('/audit'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      renderAudit(data.entries || []);
+    })
+    .catch(function(e) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+    });
+}
+
+function renderAudit(entries) {
+  var content = document.getElementById('auditContent');
+
+  if (entries.length === 0) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9670;</div><div class="empty-title">Sin registros de auditoría</div><div class="empty-desc">Los registros aparecerán aquí cuando los agentes ejecuten tareas</div></div>';
+    return;
+  }
+
+  var html = '<div class="card"><div class="card-header"><div class="card-title">Registros de Auditoría</div><div class="card-subtitle">' + entries.length + ' entradas recientes</div></div>';
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<thead><tr style="border-bottom:1px solid var(--border)">';
+  html += '<th style="text-align:left;padding:8px;color:var(--text-muted)">Hora</th>';
+  html += '<th style="text-align:left;padding:8px;color:var(--text-muted)">Agente</th>';
+  html += '<th style="text-align:left;padding:8px;color:var(--text-muted)">Tarea</th>';
+  html += '<th style="text-align:left;padding:8px;color:var(--text-muted)">Modelo</th>';
+  html += '<th style="text-align:left;padding:8px;color:var(--text-muted)">Latencia</th>';
+  html += '<th style="text-align:left;padding:8px;color:var(--text-muted)">Estado</th>';
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    var time = new Date(e.timestamp).toLocaleTimeString('es-AR');
+    html += '<tr style="border-bottom:1px solid var(--border)">';
+    html += '<td style="padding:8px;color:var(--text-muted)">' + time + '</td>';
+    html += '<td style="padding:8px">' + escapeHtml(e.agent_id || '') + '</td>';
+    html += '<td style="padding:8px">' + escapeHtml(e.task || '') + '</td>';
+    html += '<td style="padding:8px;color:var(--primary)">' + escapeHtml(e.model || '') + '</td>';
+    html += '<td style="padding:8px;color:var(--text-muted)">' + (e.latency_ms || 0) + 'ms</td>';
+    html += '<td style="padding:8px"><span class="brand-status ' + (e.success ? 'status-complete' : 'status-error') + '">' + (e.success ? 'OK' : 'Error') + '</span></td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div></div>';
+  content.innerHTML = html;
+}
+
+// ============================================================
+// UTILIDADES
+// ============================================================
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ============================================================
+// INICIALIZACIÓN
+// ============================================================
+function init() {
+  // Detectar URL base del API
+  API_BASE = window.location.origin;
+
+  // Cargar estado inicial
+  loadDashboard();
+  checkOllamaStatus();
+
+  // Verificar estado de Ollama cada 30 segundos
+  setInterval(checkOllamaStatus, 30000);
+
+  // Cargar marcas en background para el badge
+  fetch(apiUrl('/brands'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      state.brands = data.brands || [];
+      document.getElementById('brandsBadge').textContent = state.brands.length;
+      document.getElementById('statBrands').textContent = state.brands.length;
+      var complete = state.brands.filter(function(b) { return b.onboarding_status === 'complete'; }).length;
+      document.getElementById('statADN').textContent = complete;
+    })
+    .catch(function() {});
+}
+
+init();
+</script>
+</body>
+</html>

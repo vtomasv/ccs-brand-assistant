@@ -1,0 +1,114 @@
+{
+  "run": [
+    {
+      "method": "log",
+      "params": {
+        "html": "<h3>&#x1F680; Instalando CSS Brand Assistant...</h3><p>Plataforma: <strong>{{platform}}</strong> | RAM: <strong>{{ram}}GB</strong></p>"
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x1F50D; Verificando e instalando Ollama...</p>"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -File scripts\\\\install_ollama.ps1' : 'which ollama && echo OLLAMA_ALREADY_INSTALLED || (curl -fsSL https://ollama.com/install.sh | sh && echo OLLAMA_INSTALLED)'}}",
+        "path": "{{cwd}}"
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x25B6;&#xFE0F; Iniciando servicio Ollama...</p>"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -File scripts\\\\start_ollama.ps1' : 'ollama serve > /dev/null 2>&1 & sleep 5'}}",
+        "path": "{{cwd}}"
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x2B07;&#xFE0F; Descargando modelo de IA (puede tardar varios minutos)...</p>"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -File scripts\\\\pull_model.ps1' : (ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b')}}",
+        "path": "{{cwd}}"
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x1F40D; Creando entorno virtual e instalando dependencias Python...</p>"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -File scripts\\\\setup_venv.ps1' : 'python3 -m venv venv && venv/bin/python -m pip install --upgrade pip --quiet && venv/bin/python -m pip install -r requirements.txt && echo DEPS_OK'}}",
+        "path": "{{cwd}}"
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x1F4BE; Inicializando directorios de datos...</p>"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -Command \"@(\\\"data/agents\\\",\\\"data/prompts/system\\\",\\\"data/sessions\\\",\\\"data/exports\\\",\\\"data/brands\\\",\\\"data/campaigns\\\",\\\"data/audit\\\") | ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }; Write-Host DIRS_OK\"' : 'mkdir -p data/agents data/prompts/system data/sessions data/exports data/brands data/campaigns data/audit'}}",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'if not exist data\\\\agents\\\\agents.json copy defaults\\\\agents.json data\\\\agents\\\\agents.json' : 'cp defaults/agents.json data/agents/agents.json 2>/dev/null || true'}}",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'for %f in (defaults\\\\prompts\\\\*.md) do if not exist data\\\\prompts\\\\system\\\\%~nxf copy \"%f\" data\\\\prompts\\\\system\\\\' : 'cp defaults/prompts/*.md data/prompts/system/ 2>/dev/null || true'}}",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "method": "fs.write",
+      "params": {
+        "path": "data/config.json",
+        "text": "{{JSON.stringify({version: '0.1.0', installedAt: new Date().toISOString(), platform: platform, defaultModel: ram < 6 ? 'llama3.2:1b' : ram < 12 ? 'llama3.2:3b' : 'llama3.1:8b'}, null, 2)}}"
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<h3 style='color: #22c55e'>&#x2705; Instalaci&#xF3;n completada</h3><p>Haz click en <strong>Iniciar</strong> para comenzar a usar CSS Brand Assistant.</p>"
+      }
+    },
+    {
+      "method": "notify",
+      "params": {
+        "html": "CSS Brand Assistant instalado correctamente."
+      }
+    }
+  ]
+}
