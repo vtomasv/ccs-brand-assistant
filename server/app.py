@@ -3180,6 +3180,8 @@ def root():
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    # Escuchar en 0.0.0.0 para que Pinokio pueda acceder desde su proceso interno
-    # en todos los sistemas operativos (Windows, macOS, Linux)
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
+    # En Windows, escuchar en 127.0.0.1 es necesario para que el browser
+    # de Pinokio pueda acceder al servidor correctamente.
+    # En Linux/macOS se usa 0.0.0.0 para acceso desde red local.
+    host = "127.0.0.1" if sys.platform == "win32" else "0.0.0.0"
+    uvicorn.run(app, host=host, port=PORT, log_level="info")
