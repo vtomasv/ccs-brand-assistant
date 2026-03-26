@@ -1,5 +1,5 @@
 """
-CSS Brand Assistant — Backend FastAPI
+CCS Brand Assistant — Backend FastAPI
 Plugin de Pinokio para gestión de ADN de marca y campañas digitales con IA local.
 
 Arquitectura:
@@ -119,9 +119,9 @@ logger = logging.getLogger("css-brand-assistant")
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(
-    title="CSS Brand Assistant",
-    description="Plugin Pinokio para ADN de marca y campañas digitales con IA local",
-    version="0.1.0",
+    title="CCS Brand Assistant",
+    description="Plugin Pinokio para ADN de marca y campañas digitales con IA local — Cámara de Comercio de Santiago",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -170,7 +170,7 @@ async def startup_event():
     # Verificar modelos disponibles en Ollama y actualizar config si es necesario
     await _verify_and_fix_models()
 
-    logger.info(f"CSS Brand Assistant iniciado. DATA_DIR={DATA_DIR}")
+    logger.info(f"CCS Brand Assistant iniciado. DATA_DIR={DATA_DIR}")
 
 
 async def _verify_and_fix_models():
@@ -3180,7 +3180,6 @@ def root():
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    # En Windows, escuchar en 127.0.0.1 para evitar que el browser abra 0.0.0.0
-    # En Linux/macOS, escuchar en 0.0.0.0 para acceso desde red local
-    host = "127.0.0.1" if sys.platform == "win32" else "0.0.0.0"
-    uvicorn.run(app, host=host, port=PORT, log_level="info")
+    # Escuchar en 0.0.0.0 para que Pinokio pueda acceder desde su proceso interno
+    # en todos los sistemas operativos (Windows, macOS, Linux)
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
