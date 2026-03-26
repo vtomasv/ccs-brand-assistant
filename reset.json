@@ -1,16 +1,22 @@
 {
   "run": [
     {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x1F5D1;&#xFE0F; Desinstalando CCS Brand Assistant...</p>"
+      }
+    },
+    {
       "method": "shell.run",
       "params": {
-        "message": "rm -rf venv",
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -Command \"if (Test-Path venv) { Remove-Item -Recurse -Force venv; Write-Host VENV_REMOVED } else { Write-Host VENV_NOT_FOUND }\"' : 'rm -rf venv && echo VENV_REMOVED || echo VENV_NOT_FOUND'}}",
         "path": "{{cwd}}"
       }
     },
     {
       "method": "notify",
       "params": {
-        "html": "CSS Brand Assistant desinstalado. Los datos del usuario se conservan en la carpeta 'data'.",
+        "html": "CCS Brand Assistant desinstalado. Los datos del usuario se conservan en la carpeta 'data'.",
         "type": "info"
       }
     }

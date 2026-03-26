@@ -1,5 +1,5 @@
 /**
- * CSS Brand Assistant — Configuración de Plugin Pinokio
+ * CCS Brand Assistant — Configuración de Plugin Pinokio
  *
  * Menú dinámico según estado del plugin:
  *   - No instalado: botón de instalación
@@ -7,8 +7,8 @@
  *   - Instalado y detenido: botón iniciar
  */
 module.exports = {
-  title: "CSS Brand Assistant",
-  description: "Plataforma de ADN de marca y campañas digitales con IA local para PYMEs",
+  title: "CCS Brand Assistant",
+  description: "Plataforma de ADN de marca y campañas digitales con IA local para PYMEs — Cámara de Comercio de Santiago",
   icon: "icon.png",
 
   menu: async (kernel, info) => {
@@ -35,7 +35,7 @@ module.exports = {
           icon: "fa-solid fa-circle",
           text: "En ejecución",
           href: "start.json",
-          style: "color: #22c55e",
+          style: "color: #3DAE2B",
         },
         {
           icon: "fa-solid fa-arrow-up-right-from-square",
