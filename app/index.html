@@ -417,20 +417,32 @@
       background: #FFFFFF;
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 28px;
       width: 100%;
       max-width: 560px;
       max-height: 90vh;
-      overflow-y: auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
       box-shadow: 0 20px 60px rgba(13,61,166,0.18);
     }
     .modal-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
+      padding: 24px 28px 16px 28px;
       border-bottom: 2px solid var(--border);
+      background: #FFFFFF;
+      border-radius: 16px 16px 0 0;
+      flex-shrink: 0;
+      /* Fijo: no hace scroll con el contenido */
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .modal-body {
+      overflow-y: auto;
+      padding: 20px 28px 28px 28px;
+      flex: 1;
     }
     .modal-title { font-size: 17px; font-weight: 700; color: var(--ccs-azul-oscuro); }
     .modal-close {
@@ -1009,12 +1021,13 @@
 </div><!-- /app-layout -->
 
 <!-- ===== MODAL: Nueva Marca ===== -->
-<div class="modal-overlay" id="modalNewBrand">
+<div class="modal-overlay" id="modalNewBrand" onclick="_onOverlayClick(event,'modalNewBrand')">
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title">Nueva Marca</div>
       <button class="modal-close" onclick="closeModal('modalNewBrand')">&#10005;</button>
     </div>
+    <div class="modal-body">
     <div class="form-group">
       <label>Nombre de la marca *</label>
       <input type="text" id="newBrandName" placeholder="Ej: Mi Empresa S.A." />
@@ -1061,16 +1074,18 @@
       <button class="btn btn-secondary" onclick="closeModal('modalNewBrand')">Cancelar</button>
       <button class="btn btn-primary" onclick="createBrand()" id="btnCreateBrand">Crear Marca</button>
     </div>
+    </div><!-- /modal-body -->
   </div>
 </div>
 
 <!-- ===== MODAL: Nueva Campaña ===== -->
-<div class="modal-overlay" id="modalNewCampaign">
+<div class="modal-overlay" id="modalNewCampaign" onclick="_onOverlayClick(event,'modalNewCampaign')">
   <div class="modal" style="max-width:680px">
     <div class="modal-header">
       <div class="modal-title">Nueva Campaña</div>
       <button class="modal-close" onclick="closeModal('modalNewCampaign')">&#10005;</button>
     </div>
+    <div class="modal-body">
     <div class="form-row">
       <div class="form-group">
         <label>Nombre de la campaña *</label>
@@ -1151,17 +1166,19 @@
       <button class="btn btn-secondary" onclick="closeModal('modalNewCampaign')">Cancelar</button>
       <button class="btn btn-primary" onclick="createCampaign()" id="btnCreateCampaign">Generar Campaña con IA</button>
     </div>
+    </div><!-- /modal-body -->
   </div>
 </div>
 
 <!-- ===== MODAL: Editor de Publicación ===== -->
-<div class="modal-overlay" id="modalPubEditor">
+<div class="modal-overlay" id="modalPubEditor" onclick="_onOverlayClick(event,'modalPubEditor')">
   <div class="modal" style="max-width:800px">
     <div class="modal-header">
       <div class="modal-title" id="pubEditorTitle">Editar Publicación</div>
       <button class="modal-close" onclick="closePubEditorNoSave()">&#10005;</button>
     </div>
-    <div class="pub-editor" id="pubEditorContent">
+    <div class="modal-body">
+      <div class="pub-editor" id="pubEditorContent"></div>
     </div>
   </div>
 </div>
@@ -1205,6 +1222,14 @@ function openModal(id) {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
+}
+
+// Cierra el modal al hacer click en el overlay (fuera del contenido del modal)
+function _onOverlayClick(event, modalId) {
+  // Solo cerrar si el click fue directamente en el overlay, no en su contenido
+  if (event.target === document.getElementById(modalId)) {
+    closeModal(modalId);
+  }
 }
 
 function setLoading(btnId, loading, text) {
