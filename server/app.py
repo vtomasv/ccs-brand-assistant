@@ -3210,3 +3210,210 @@ if __name__ == "__main__":
     # En Linux/macOS se usa 0.0.0.0 para acceso desde red local.
     host = "127.0.0.1" if sys.platform == "win32" else "0.0.0.0"
     uvicorn.run(app, host=host, port=PORT, log_level="info")
+
+
+# ---------------------------------------------------------------------------
+# RUTAS: Mejora de prompts de imagen con IA
+# ---------------------------------------------------------------------------
+
+class ImagePromptEnhanceRequest(BaseModel):
+    """Request para mejorar un prompt de imagen con IA."""
+    prompt: str
+    model: Optional[str] = None  # Si None, usa el modelo activo en config
+
+
+class ImagePromptExternalRequest(BaseModel):
+    """Request para generar un prompt optimizado para herramientas externas."""
+    prompt: Optional[str] = ""
+    post_text: Optional[str] = ""
+    hashtags: Optional[str] = ""
+    model: Optional[str] = None
+
+
+@app.post("/api/image-prompt/enhance")
+async def enhance_image_prompt(req: ImagePromptEnhanceRequest):
+    """Mejora un prompt de imagen usando el LLM local (Ollama).
+
+    Toma un prompt simple y lo enriquece con:
+    - Detalles de composición y encuadre
+    - Iluminación y paleta de colores
+    - Estilo artístico y técnica
+    - Calidad y resolución
+    - Elementos negativos a evitar
+
+    Retorna: { enhanced_prompt: str, original_prompt: str }
+    """
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="El prompt no puede estar vacío")
+
+    # Obtener modelo activo
+    cfg = load_json(CONFIG_FILE, {})
+    model = req.model or cfg.get("default_model") or cfg.get("model", "")
+    if not model:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay modelo de texto configurado. Ve a Agentes IA y selecciona un modelo."
+        )
+
+    system_prompt = """Eres un experto en generación de imágenes con IA y prompt engineering.
+Tu tarea es mejorar prompts de imagen para obtener resultados más precisos y de mayor calidad.
+
+REGLAS:
+- Mantén la intención original del prompt
+- Agrega detalles de composición (primer plano, plano general, ángulo, etc.)
+- Especifica iluminación (luz natural, estudio, atardecer, etc.)
+- Agrega estilo visual (fotorrealista, ilustración, minimalista, etc.)
+- Incluye calidad: high quality, detailed, sharp focus
+- Mantén el idioma del prompt original (español o inglés)
+- El resultado debe ser UNA SOLA línea de texto, sin explicaciones ni comentarios
+- Máximo 200 palabras
+
+RESPONDE SOLO CON EL PROMPT MEJORADO, sin prefijos como "Prompt:" ni comillas."""
+
+    user_message = f"Mejora este prompt de imagen:\n\n{req.prompt.strip()}"
+
+    try:
+        enhanced = call_ollama(
+            model=model,
+            system_prompt=system_prompt,
+            user_message=user_message,
+            temperature=0.7,
+            timeout=60,
+        )
+        # Limpiar el resultado
+        enhanced = enhanced.strip().strip('"').strip("'")
+        # Eliminar prefijos comunes que el LLM puede agregar
+        for prefix in ["Prompt:", "Prompt mejorado:", "Resultado:", "Enhanced prompt:"]:
+            if enhanced.lower().startswith(prefix.lower()):
+                enhanced = enhanced[len(prefix):].strip()
+
+        log_audit("image_prompt", "enhance_prompt",
+                  {"original": req.prompt[:100]},
+                  f"Prompt mejorado ({len(enhanced)} chars)", model, 0, True)
+
+        return {
+            "enhanced_prompt": enhanced,
+            "original_prompt": req.prompt,
+            "model_used": model,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error mejorando prompt: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al mejorar el prompt: {str(e)}")
+
+
+@app.post("/api/image-prompt/external")
+async def generate_external_image_prompt(req: ImagePromptExternalRequest):
+    """Genera un prompt optimizado para herramientas externas de generación de imágenes.
+
+    Compatible con:
+    - Nano Banana (nano-banana.com)
+    - Midjourney
+    - DALL-E 3 (ChatGPT)
+    - Stable Diffusion (Automatic1111, ComfyUI)
+    - Adobe Firefly
+    - Leonardo AI
+
+    El prompt generado sigue las convenciones de estas herramientas:
+    - Descripción visual detallada
+    - Estilo artístico explícito
+    - Parámetros de calidad
+    - Aspectos técnicos (ratio, calidad, versión)
+
+    Retorna: { external_prompt: str, tools: list }
+    """
+    base_prompt = (req.prompt or "").strip()
+    post_text = (req.post_text or "").strip()
+    hashtags = (req.hashtags or "").strip()
+
+    if not base_prompt and not post_text:
+        raise HTTPException(
+            status_code=400,
+            detail="Proporciona al menos un prompt base o el texto del post"
+        )
+
+    # Obtener modelo activo
+    cfg = load_json(CONFIG_FILE, {})
+    model = req.model or cfg.get("default_model") or cfg.get("model", "")
+    if not model:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay modelo de texto configurado. Ve a Agentes IA y selecciona un modelo."
+        )
+
+    # Construir contexto para el LLM
+    context_parts = []
+    if base_prompt:
+        context_parts.append(f"Prompt base: {base_prompt}")
+    if post_text:
+        context_parts.append(f"Texto del post: {post_text[:300]}")
+    if hashtags:
+        context_parts.append(f"Hashtags: {hashtags}")
+    context = "\n".join(context_parts)
+
+    system_prompt = """Eres un experto en prompt engineering para generadores de imágenes con IA como Midjourney, DALL-E 3, Stable Diffusion y Nano Banana.
+
+Tu tarea es crear un prompt profesional y detallado para herramientas externas de generación de imágenes, basándote en el contexto de marketing proporcionado.
+
+ESTRUCTURA DEL PROMPT A GENERAR:
+1. Descripción principal del sujeto/escena (qué se ve)
+2. Estilo visual (fotorrealista, ilustración digital, minimalista, etc.)
+3. Iluminación y atmósfera (luz natural, estudio, cinematográfico, etc.)
+4. Composición (plano general, primer plano, perspectiva, etc.)
+5. Paleta de colores y mood (vibrante, cálido, profesional, etc.)
+6. Calidad técnica: high quality, 8k, sharp focus, detailed, professional photography
+
+REGLAS:
+- El prompt debe ser en INGLÉS (estándar para herramientas externas)
+- Debe ser descriptivo y específico
+- Incluir palabras clave de calidad al final
+- No incluir texto en la imagen (a menos que sea explícitamente pedido)
+- Adaptar el estilo al contexto de marketing/negocio del post
+- Máximo 250 palabras
+- Responde SOLO con el prompt, sin explicaciones ni comentarios adicionales"""
+
+    user_message = f"""Genera un prompt para herramienta externa de generación de imágenes basado en este contexto de marketing:
+
+{context}
+
+El prompt debe ser apropiado para una publicación de redes sociales de una empresa."""
+
+    try:
+        external_prompt = call_ollama(
+            model=model,
+            system_prompt=system_prompt,
+            user_message=user_message,
+            temperature=0.8,
+            timeout=90,
+        )
+        # Limpiar el resultado
+        external_prompt = external_prompt.strip().strip('"').strip("'")
+        for prefix in ["Prompt:", "Image prompt:", "External prompt:", "Result:"]:
+            if external_prompt.lower().startswith(prefix.lower()):
+                external_prompt = external_prompt[len(prefix):].strip()
+
+        log_audit("image_prompt", "external_prompt",
+                  {"base": base_prompt[:100], "has_post_text": bool(post_text)},
+                  f"Prompt externo generado ({len(external_prompt)} chars)", model, 0, True)
+
+        return {
+            "external_prompt": external_prompt,
+            "base_prompt": base_prompt,
+            "model_used": model,
+            "compatible_tools": [
+                "Nano Banana (nano-banana.com)",
+                "Midjourney",
+                "DALL-E 3 (ChatGPT)",
+                "Stable Diffusion (Automatic1111 / ComfyUI)",
+                "Adobe Firefly",
+                "Leonardo AI",
+            ],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generando prompt externo: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al generar el prompt externo: {str(e)}")
