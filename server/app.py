@@ -3196,23 +3196,7 @@ def root():
 # ---------------------------------------------------------------------------
 # Punto de entrada
 # ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    import uvicorn
 
-    # En Windows, asyncio necesita ProactorEventLoop para sockets y subprocesos.
-    # Esto evita el error 'NotImplementedError' al usar asyncio en Windows.
-    if sys.platform == "win32":
-        import asyncio
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-    # En Windows, escuchar en 127.0.0.1 es necesario para que el browser
-    # de Pinokio pueda acceder al servidor correctamente.
-    # En Linux/macOS se usa 0.0.0.0 para acceso desde red local.
-    host = "127.0.0.1" if sys.platform == "win32" else "0.0.0.0"
-    uvicorn.run(app, host=host, port=PORT, log_level="info")
-
-
-# ---------------------------------------------------------------------------
 # RUTAS: Mejora de prompts de imagen con IA
 # ---------------------------------------------------------------------------
 
@@ -3247,7 +3231,7 @@ async def enhance_image_prompt(req: ImagePromptEnhanceRequest):
         raise HTTPException(status_code=400, detail="El prompt no puede estar vacío")
 
     # Obtener modelo activo
-    cfg = load_json(CONFIG_FILE, {})
+    cfg = load_json(DATA_DIR / "config.json", {})
     model = req.model or cfg.get("default_model") or cfg.get("model", "")
     if not model:
         raise HTTPException(
@@ -3335,7 +3319,7 @@ async def generate_external_image_prompt(req: ImagePromptExternalRequest):
         )
 
     # Obtener modelo activo
-    cfg = load_json(CONFIG_FILE, {})
+    cfg = load_json(DATA_DIR / "config.json", {})
     model = req.model or cfg.get("default_model") or cfg.get("model", "")
     if not model:
         raise HTTPException(
@@ -3417,3 +3401,21 @@ El prompt debe ser apropiado para una publicación de redes sociales de una empr
     except Exception as e:
         logger.error(f"Error generando prompt externo: {e}")
         raise HTTPException(status_code=500, detail=f"Error al generar el prompt externo: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # En Windows, asyncio necesita ProactorEventLoop para sockets y subprocesos.
+    # Esto evita el error 'NotImplementedError' al usar asyncio en Windows.
+    if sys.platform == "win32":
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+    # En Windows, escuchar en 127.0.0.1 es necesario para que el browser
+    # de Pinokio pueda acceder al servidor correctamente.
+    # En Linux/macOS se usa 0.0.0.0 para acceso desde red local.
+    host = "127.0.0.1" if sys.platform == "win32" else "0.0.0.0"
+    uvicorn.run(app, host=host, port=PORT, log_level="info")
+
+
+# ---------------------------------------------------------------------------
