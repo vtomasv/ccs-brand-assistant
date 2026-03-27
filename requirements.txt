@@ -8,6 +8,13 @@ python-multipart>=0.0.9
 aiofiles>=23.2.0
 Pillow>=10.0.0
 
+# --- Scraper multi-estrategia para sitios modernos con JS (SPAs, React, Taskade, etc.) ---
+# Playwright permite renderizar JavaScript en el navegador headless.
+# Después de instalar el paquete, ejecutar una vez:
+#   playwright install chromium
+# Esto descarga el navegador Chromium (~100MB) necesario para el scraping.
+playwright>=1.40.0
+
 # --- Motor de generación de imágenes embebido (HuggingFace Diffusers + LCM) ---
 # Instalación para CPU (Windows/macOS/Linux sin GPU):
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu

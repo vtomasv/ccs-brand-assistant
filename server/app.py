@@ -895,27 +895,45 @@ Responde en formato JSON con los campos del ADN empresarial."""
 
 
 def _scrape_website(url: str) -> str:
-    """Extrae texto visible de un sitio web."""
+    """
+    Extrae texto y datos de identidad de marca de un sitio web.
+
+    Usa el módulo web_scraper con estrategias en cascada:
+      1. requests + BeautifulSoup (sitios estáticos)
+      2. Jina Reader API (proxy cloud que renderiza JS)
+      3. Playwright headless (renderizado JS local completo)
+      4. Síntesis de meta tags + JSON-LD + og:image
+
+    Soporta: WordPress, Shopify, React/Vue/Angular SPAs, Taskade,
+    Webflow, Wix, Squarespace, Next.js, y cualquier sitio moderno.
+    """
+    try:
+        from web_scraper import scrape_website as _scrape
+        return _scrape(url)
+    except ImportError:
+        logger.warning("[scraper] Módulo web_scraper no disponible, usando fallback básico")
+        return _scrape_website_fallback(url)
+    except Exception as e:
+        logger.error(f"[scraper] Error en scraping de {url}: {e}")
+        return f"[Error al acceder al sitio: {str(e)}]"
+
+
+def _scrape_website_fallback(url: str) -> str:
+    """Fallback básico con requests + BeautifulSoup para cuando web_scraper no está disponible."""
     try:
         from bs4 import BeautifulSoup
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; CSSBrandAssistant/0.1)"}
-        resp = requests.get(url, headers=headers, timeout=15)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        resp = requests.get(url, headers=headers, timeout=20, allow_redirects=True)
         resp.raise_for_status()
-        # Forzar UTF-8 para evitar problemas de codificacion en Windows (cp1252)
         resp.encoding = resp.apparent_encoding or "utf-8"
         soup = BeautifulSoup(resp.content, "html.parser", from_encoding="utf-8")
-
-        # Eliminar scripts y estilos
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
-
-        # Extraer texto significativo
         texts = []
         for tag in soup.find_all(["h1", "h2", "h3", "p", "li", "span", "a"]):
             text = tag.get_text(strip=True)
             if len(text) > 20:
                 texts.append(text)
-
         return "\n".join(texts[:200])
     except Exception as e:
         return f"[Error al acceder al sitio: {str(e)}]"

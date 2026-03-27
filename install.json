@@ -70,7 +70,7 @@
     {
       "method": "log",
       "params": {
-        "html": "<p>&#x1F40D; Paso 4/5 — Creando entorno virtual Python e instalando dependencias...</p>"
+        "html": "<p>&#x1F40D; Paso 4/6 — Creando entorno virtual Python e instalando dependencias...</p>"
       }
     },
     {
@@ -94,7 +94,31 @@
     {
       "method": "log",
       "params": {
-        "html": "<p>&#x1F4BE; Paso 5/5 — Inicializando directorios de datos...</p>"
+        "html": "<p>&#x1F310; Paso 5/6 — Instalando navegador Chromium para scraping de sitios modernos (React, SPAs, etc.)...</p><p><em>Esto descarga ~100MB una sola vez.</em></p>"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -Command \"& { $env:PLAYWRIGHT_BROWSERS_PATH=\\"0\\"; venv\\\\Scripts\\\\playwright.exe install chromium; Write-Host CHROMIUM_OK }\"' : 'venv/bin/playwright install chromium && echo CHROMIUM_OK || echo CHROMIUM_SKIP'}}",
+        "path": "{{cwd}}",
+        "on": [
+          {
+            "event": "/CHROMIUM_OK|CHROMIUM_SKIP/",
+            "done": true
+          },
+          {
+            "event": "/ERROR:/i",
+            "done": false
+          }
+        ]
+      }
+    },
+
+    {
+      "method": "log",
+      "params": {
+        "html": "<p>&#x1F4BE; Paso 6/6 — Inicializando directorios de datos...</p>"
       }
     },
     {
