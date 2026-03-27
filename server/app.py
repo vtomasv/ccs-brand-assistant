@@ -3198,6 +3198,13 @@ def root():
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
+
+    # En Windows, asyncio necesita ProactorEventLoop para sockets y subprocesos.
+    # Esto evita el error 'NotImplementedError' al usar asyncio en Windows.
+    if sys.platform == "win32":
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
     # En Windows, escuchar en 127.0.0.1 es necesario para que el browser
     # de Pinokio pueda acceder al servidor correctamente.
     # En Linux/macOS se usa 0.0.0.0 para acceso desde red local.

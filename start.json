@@ -16,7 +16,7 @@
         "env": {
           "PORT": "{{port}}",
           "DATA_DIR": "{{cwd}}/data",
-          "OLLAMA_URL": "http://localhost:11434",
+          "OLLAMA_URL": "http://127.0.0.1:11434",
           "PYTHONIOENCODING": "utf-8",
           "PYTHONUTF8": "1"
         }

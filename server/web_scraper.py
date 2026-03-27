@@ -281,17 +281,20 @@ def _scrape_playwright(url: str, result: ScrapeResult) -> bool:
     try:
         from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
+        # Flags de Chromium: --no-sandbox y --disable-setuid-sandbox solo en Linux
+        # En Windows y macOS no son necesarios y pueden causar warnings
+        chromium_args = [
+            "--disable-gpu",
+            "--disable-web-security",
+            "--disable-features=IsolateOrigins,site-per-process",
+        ]
+        if sys.platform == "linux":
+            chromium_args += ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-web-security",
-                    "--disable-features=IsolateOrigins,site-per-process",
-                ]
+                args=chromium_args,
             )
             context = browser.new_context(
                 user_agent=_DEFAULT_UA,
