@@ -272,11 +272,67 @@ def _scrape_jina(url: str, result: ScrapeResult) -> bool:
 # ---------------------------------------------------------------------------
 # Estrategia 3: Playwright headless (renderizado JS local completo)
 # ---------------------------------------------------------------------------
+def _run_playwright_in_thread(url: str) -> ScrapeResult:
+    """
+    Ejecuta Playwright en un thread separado para evitar conflictos con
+    el loop asyncio de FastAPI. Retorna un ScrapeResult con el contenido.
+    """
+    result = ScrapeResult()
+    result.url = url
+    _scrape_playwright_sync(url, result)
+    return result
+
+
 def _scrape_playwright(url: str, result: ScrapeResult) -> bool:
     """
     Usa Playwright con Chromium headless para renderizar completamente
     el JavaScript del sitio. Es la estrategia más potente pero más lenta.
     Funciona con React, Vue, Angular, Next.js, Taskade, Webflow, etc.
+
+    Detecta automáticamente si hay un loop asyncio activo y en ese caso
+    ejecuta Playwright en un thread separado para evitar conflictos.
+    """
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        # Estamos dentro de un loop asyncio (FastAPI background task)
+        # Ejecutar Playwright en un ThreadPoolExecutor para evitar el conflicto
+        import concurrent.futures
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_run_playwright_in_thread, url)
+                pw_result = future.result(timeout=60)
+                # Copiar resultados al result original
+                result.title = pw_result.title or result.title
+                result.description = pw_result.description or result.description
+                result.og_title = pw_result.og_title or result.og_title
+                result.og_description = pw_result.og_description or result.og_description
+                result.og_image = pw_result.og_image or result.og_image
+                result.meta_keywords = pw_result.meta_keywords or result.meta_keywords
+                result.headings = pw_result.headings or result.headings
+                result.nav_items = pw_result.nav_items or result.nav_items
+                result.cta_texts = pw_result.cta_texts or result.cta_texts
+                result.main_text = pw_result.main_text or result.main_text
+                result.css_colors = pw_result.css_colors or result.css_colors
+                result.fonts = pw_result.fonts or result.fonts
+                result.strategy_used = pw_result.strategy_used or "playwright-thread"
+                return result.is_sufficient()
+        except Exception as e:
+            logger.warning(f"[scraper] Playwright en thread falló: {e}")
+            return False
+    else:
+        # Sin loop asyncio activo, usar sync_playwright directamente
+        return _scrape_playwright_sync(url, result)
+
+
+def _scrape_playwright_sync(url: str, result: ScrapeResult) -> bool:
+    """
+    Implementación síncrona de Playwright. Llamar solo desde threads
+    o cuando no hay un loop asyncio activo.
     """
     try:
         from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
