@@ -9,7 +9,7 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "{{platform === 'win32' ? 'powershell -ExecutionPolicy Bypass -Command \"if (Test-Path venv) { Remove-Item -Recurse -Force venv; Write-Host VENV_REMOVED } else { Write-Host VENV_NOT_FOUND }\"' : 'rm -rf venv && echo VENV_REMOVED || echo VENV_NOT_FOUND'}}",
+        "message": "rm -rf venv",
         "path": "{{cwd}}"
       }
     },

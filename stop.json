@@ -3,7 +3,8 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "{{platform === 'win32' ? 'taskkill /F /IM python.exe 2>nul || true' : 'pkill -f \"server/app.py\" 2>/dev/null || true'}}"
+        "message": "pkill -f 'server/app.py' 2>/dev/null || true",
+        "path": "{{cwd}}"
       }
     }
   ]
