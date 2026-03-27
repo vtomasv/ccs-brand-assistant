@@ -59,13 +59,13 @@
     {
       "method": "log",
       "params": {
-        "html": "<p style='padding:0 20px'>&#x1F40D; <strong>Paso 4/6</strong> &mdash; Creando entorno Python...</p>"
+        "html": "<p style='padding:0 20px'>&#x1F40D; <strong>Paso 4/6</strong> &mdash; Creando entorno Python aislado...</p>"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "python -m venv venv",
+        "message": "python -m venv venv --clear",
         "path": "{{cwd}}"
       }
     },
@@ -79,49 +79,43 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "pip install --upgrade pip --quiet",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\pip.exe' : './venv/bin/pip'}} install --upgrade pip --quiet",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "pip install -r requirements-core.txt --quiet",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\pip.exe' : './venv/bin/pip'}} install -r requirements-core.txt",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "pip install playwright>=1.40.0 --quiet",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\pip.exe' : './venv/bin/pip'}} install playwright>=1.40.0 --quiet",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "playwright install chromium",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\playwright.exe' : './venv/bin/playwright'}} install chromium",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "pip install torch --index-url https://download.pytorch.org/whl/cpu --quiet",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\pip.exe' : './venv/bin/pip'}} install torch --index-url https://download.pytorch.org/whl/cpu --quiet",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "pip install diffusers>=0.30.0 transformers>=4.40.0 accelerate>=0.30.0 safetensors>=0.4.0 --quiet",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\pip.exe' : './venv/bin/pip'}} install diffusers>=0.30.0 transformers>=4.40.0 accelerate>=0.30.0 safetensors>=0.4.0 --quiet",
+        "path": "{{cwd}}"
       }
     },
 
@@ -134,25 +128,22 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "python -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\python.exe' : './venv/bin/python'}} -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "python -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\python.exe' : './venv/bin/python'}} -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
+        "path": "{{cwd}}"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "python -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\"",
-        "path": "{{cwd}}",
-        "venv": "venv"
+        "message": "{{platform === 'win32' ? 'venv\\\\Scripts\\\\python.exe' : './venv/bin/python'}} -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\"",
+        "path": "{{cwd}}"
       }
     },
     {

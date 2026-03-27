@@ -10,9 +10,15 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 & sleep 3 && python server/app.py",
+        "message": "ollama serve > /dev/null 2>&1 &",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "sleep 3 && {{platform === 'win32' ? 'venv\\\\Scripts\\\\python.exe' : './venv/bin/python'}} server/app.py",
         "path": "{{cwd}}",
-        "venv": "venv",
         "env": {
           "PORT": "{{port}}",
           "DATA_DIR": "{{cwd}}/data",
