@@ -7,17 +7,46 @@
         "html": "<p>&#x25B6;&#xFE0F; Iniciando CCS Brand Assistant en puerto {{port}}...</p>"
       }
     },
+
     {
+      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
         "message": "ollama serve > /dev/null 2>&1 &",
         "path": "{{cwd}}"
       }
     },
+
     {
+      "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "sleep 3 && {{platform === 'win32' ? 'venv\\\\Scripts\\\\python.exe' : './venv/bin/python'}} server/app.py",
+        "message": "start /B ollama serve",
+        "path": "{{cwd}}"
+      }
+    },
+
+    {
+      "when": "{{platform !== 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "sleep 3 && ./venv/bin/python server/app.py",
+        "path": "{{cwd}}",
+        "env": {
+          "PORT": "{{port}}",
+          "DATA_DIR": "{{cwd}}/data",
+          "OLLAMA_URL": "http://127.0.0.1:11434",
+          "PYTHONIOENCODING": "utf-8",
+          "PYTHONUTF8": "1"
+        }
+      }
+    },
+
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "ping -n 4 127.0.0.1 > nul && venv\\Scripts\\python.exe server/app.py",
         "path": "{{cwd}}",
         "env": {
           "PORT": "{{port}}",

@@ -1,9 +1,18 @@
 {
   "run": [
     {
+      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
         "message": "pkill -f 'server/app.py' 2>/dev/null || true",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "taskkill /F /FI \"WINDOWTITLE eq server/app.py\" 2>nul & taskkill /F /IM python.exe /FI \"MEMUSAGE gt 1\" 2>nul & echo STOPPED",
         "path": "{{cwd}}"
       }
     }

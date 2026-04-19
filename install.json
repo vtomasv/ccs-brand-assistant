@@ -13,10 +13,21 @@
         "html": "<p style='padding:0 20px'>&#x1F50D; <strong>Paso 1/6</strong> &mdash; Verificando Ollama...</p>"
       }
     },
+
     {
+      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama --version 2>/dev/null && echo OLLAMA_OK || curl -fsSL https://ollama.com/install.sh | sh",
+        "message": "which ollama 2>/dev/null && echo OLLAMA_OK || (curl -fsSL https://ollama.com/install.sh | sh)",
+        "path": "{{cwd}}"
+      }
+    },
+
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "where ollama 2>nul && echo OLLAMA_OK || (curl -L -o OllamaSetup.exe https://ollama.com/download/OllamaSetup.exe && OllamaSetup.exe /S && echo OLLAMA_INSTALLED)",
         "path": "{{cwd}}"
       }
     },
@@ -27,17 +38,21 @@
         "html": "<p style='padding:0 20px'>&#x25B6;&#xFE0F; <strong>Paso 2/6</strong> &mdash; Iniciando servicio Ollama...</p>"
       }
     },
+
     {
+      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 &",
+        "message": "ollama serve > /dev/null 2>&1 & sleep 5 && curl -s http://127.0.0.1:11434/api/tags > /dev/null && echo OLLAMA_READY",
         "path": "{{cwd}}"
       }
     },
+
     {
+      "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "sleep 5 && curl -s http://localhost:11434/api/tags > /dev/null && echo OLLAMA_READY",
+        "message": "start /B ollama serve && ping -n 6 127.0.0.1 > nul && curl -s http://127.0.0.1:11434/api/tags > nul && echo OLLAMA_READY",
         "path": "{{cwd}}"
       }
     },

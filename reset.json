@@ -7,9 +7,18 @@
       }
     },
     {
+      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
         "message": "rm -rf venv",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "rmdir /S /Q venv",
         "path": "{{cwd}}"
       }
     },
