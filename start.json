@@ -12,26 +12,9 @@
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 &",
-        "path": "{{cwd}}"
-      }
-    },
-
-    {
-      "when": "{{platform === 'win32'}}",
-      "method": "shell.run",
-      "params": {
-        "message": "start /B ollama serve",
-        "path": "{{cwd}}"
-      }
-    },
-
-    {
-      "when": "{{platform !== 'win32'}}",
-      "method": "shell.run",
-      "params": {
-        "message": "sleep 3 && ./venv/bin/python server/app.py",
+        "message": "ollama serve > /dev/null 2>&1 & sleep 3 && python server/app.py",
         "path": "{{cwd}}",
+        "venv": "venv",
         "env": {
           "PORT": "{{port}}",
           "DATA_DIR": "{{cwd}}/data",
@@ -46,8 +29,9 @@
       "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ping -n 4 127.0.0.1 > nul && venv\\Scripts\\python.exe server/app.py",
+        "message": "start /B ollama serve && ping -n 4 127.0.0.1 > nul && python server/app.py",
         "path": "{{cwd}}",
+        "venv": "venv",
         "env": {
           "PORT": "{{port}}",
           "DATA_DIR": "{{cwd}}/data",
