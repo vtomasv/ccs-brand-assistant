@@ -16,15 +16,26 @@
       }
     },
     {
+      "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "venv": "venv",
-        "path": ".",
         "env": {
           "PYTHONIOENCODING": "utf-8",
           "PYTHONUTF8": "1"
         },
-        "message": "python server/app.py --port {{port}}",
+        "message": "venv\\Scripts\\python.exe server/app.py --port {{port}}",
+        "on": [{ "event": "/(http:\\/\\/[0-9.:]+)/", "done": true }]
+      }
+    },
+    {
+      "when": "{{platform !== 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "env": {
+          "PYTHONIOENCODING": "utf-8",
+          "PYTHONUTF8": "1"
+        },
+        "message": "venv/bin/python server/app.py --port {{port}}",
         "on": [{ "event": "/(http:\\/\\/[0-9.:]+)/", "done": true }]
       }
     },
