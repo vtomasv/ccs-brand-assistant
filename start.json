@@ -2,13 +2,6 @@
   "daemon": true,
   "run": [
     {
-      "method": "log",
-      "params": {
-        "html": "<p>&#x25B6;&#xFE0F; Iniciando CCS Brand Assistant...</p>"
-      }
-    },
-
-    {
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
@@ -22,13 +15,18 @@
         "message": "start /B ollama serve"
       }
     },
-
     {
-      "method": "shell.start",
+      "method": "shell.run",
       "params": {
+        "venv": "venv",
+        "message": "python server/app.py",
+        "on": [{
+          "event": "/(http:\\/\\/[0-9.:]+)/",
+          "done": true
+        }],
         "env": {
           "PORT": "{{port}}",
-          "DATA_DIR": "{{cwd}}{{os.platform() === 'win32' ? '\\\\data' : '/data'}}",
+          "DATA_DIR": "{{cwd}}{{platform === 'win32' ? '\\\\data' : '/data'}}",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "PYTHONIOENCODING": "utf-8",
           "PYTHONUTF8": "1"
@@ -36,39 +34,16 @@
       }
     },
     {
-      "method": "shell.enter",
+      "method": "local.set",
       "params": {
-        "message": "{{os.platform() === 'win32' ? 'venv\\\\Scripts\\\\activate' : 'source venv/bin/activate'}}",
-        "on": [{ "event": null, "return": true }]
+        "url": "{{input.event[0]}}"
       }
     },
     {
-      "method": "shell.enter",
+      "method": "log",
       "params": {
-        "message": "{{os.platform() === 'win32' ? 'python' : 'python3'}} server/app.py",
-        "on": [{
-          "event": "/(http:\\/\\/[0-9.:]+)/",
-          "return": "{{event.matches[0][1]}}"
-        }]
+        "html": "<p>&#x2705; CCS Brand Assistant iniciado en <strong>{{local.url}}</strong></p>"
       }
-    },
-    {
-      "method": "self.set",
-      "params": {
-        "session.json": {
-          "url": "{{input}}"
-        }
-      }
-    },
-    {
-      "method": "browser.open",
-      "params": {
-        "uri": "{{self.session.url}}/ui/index.html",
-        "target": "_blank"
-      }
-    },
-    {
-      "method": "process.wait"
     }
   ]
 }

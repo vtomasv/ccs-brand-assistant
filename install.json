@@ -10,14 +10,14 @@
     {
       "method": "log",
       "params": {
-        "html": "<p style='padding:0 20px'>&#x1F50D; <strong>Paso 1/6</strong> &mdash; Verificando Ollama...</p>"
+        "html": "<p style='padding:0 20px'>&#x1F50D; <strong>Paso 1/5</strong> &mdash; Verificando Ollama...</p>"
       }
     },
     {
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "which ollama 2>/dev/null && echo OLLAMA_OK || (curl -fsSL https://ollama.com/install.sh | sh && echo OLLAMA_INSTALLED)"
+        "message": "which ollama && echo OLLAMA_OK || (curl -fsSL https://ollama.com/install.sh | sh && echo OLLAMA_INSTALLED)"
       }
     },
     {
@@ -31,28 +31,28 @@
     {
       "method": "log",
       "params": {
-        "html": "<p style='padding:0 20px'>&#x25B6;&#xFE0F; <strong>Paso 2/6</strong> &mdash; Iniciando servicio Ollama...</p>"
+        "html": "<p style='padding:0 20px'>&#x25B6;&#xFE0F; <strong>Paso 2/5</strong> &mdash; Iniciando servicio Ollama...</p>"
       }
     },
     {
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 & sleep 5 && curl -s http://127.0.0.1:11434/api/tags > /dev/null && echo OLLAMA_READY || echo OLLAMA_SKIP"
+        "message": "ollama serve > /dev/null 2>&1 & sleep 5 && (curl -s http://127.0.0.1:11434/api/tags > /dev/null && echo OLLAMA_READY || echo OLLAMA_SKIP)"
       }
     },
     {
       "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "start /B ollama serve && ping -n 6 127.0.0.1 > nul && curl -s http://127.0.0.1:11434/api/tags > nul && echo OLLAMA_READY || echo OLLAMA_SKIP"
+        "message": "start /B ollama serve && ping -n 6 127.0.0.1 > nul && (curl -s http://127.0.0.1:11434/api/tags > nul && echo OLLAMA_READY || echo OLLAMA_SKIP)"
       }
     },
 
     {
       "method": "log",
       "params": {
-        "html": "<p style='padding:0 20px'>&#x2B07;&#xFE0F; <strong>Paso 3/6</strong> &mdash; Descargando modelo de IA (RAM: {{ram}}GB)...</p><p style='padding:0 20px;color:#888;font-size:12px'>Esto puede tardar varios minutos dependiendo de tu conexi&#xF3;n.</p>"
+        "html": "<p style='padding:0 20px'>&#x2B07;&#xFE0F; <strong>Paso 3/5</strong> &mdash; Descargando modelo de IA (RAM: {{ram}}GB)...</p><p style='padding:0 20px;color:#888;font-size:12px'>Esto puede tardar varios minutos dependiendo de tu conexi&#xF3;n.</p>"
       }
     },
     {
@@ -65,101 +65,38 @@
     {
       "method": "log",
       "params": {
-        "html": "<p style='padding:0 20px'>&#x1F40D; <strong>Paso 4/6</strong> &mdash; Creando entorno Python aislado...</p>"
+        "html": "<p style='padding:0 20px'>&#x1F4E6; <strong>Paso 4/5</strong> &mdash; Instalando dependencias Python...</p><p style='padding:0 20px;color:#888;font-size:12px'>Creando entorno virtual e instalando paquetes...</p>"
       }
     },
     {
       "method": "shell.run",
       "params": {
-        "message": "{{os.platform() === 'win32' ? 'python' : 'python3'}} -m venv venv"
+        "venv": "venv",
+        "message": [
+          "pip install --upgrade pip",
+          "pip install -r requirements-core.txt",
+          "pip install playwright && playwright install chromium",
+          "pip install torch --index-url https://download.pytorch.org/whl/cpu",
+          "pip install diffusers transformers accelerate safetensors"
+        ]
       }
     },
 
     {
       "method": "log",
       "params": {
-        "html": "<p style='padding:0 20px'>&#x1F4E6; <strong>Paso 5/6</strong> &mdash; Instalando dependencias del servidor...</p>"
+        "html": "<p style='padding:0 20px'>&#x1F4BE; <strong>Paso 5/5</strong> &mdash; Inicializando datos...</p>"
       }
     },
     {
-      "method": "shell.start",
-      "params": {}
-    },
-    {
-      "method": "shell.enter",
+      "method": "shell.run",
       "params": {
-        "message": "{{os.platform() === 'win32' ? 'venv\\\\Scripts\\\\activate' : 'source venv/bin/activate'}}",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "pip install --upgrade pip --quiet",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "pip install -r requirements-core.txt",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "pip install playwright>=1.40.0 --quiet",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "playwright install chromium",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "pip install torch --index-url https://download.pytorch.org/whl/cpu --quiet",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "pip install diffusers>=0.30.0 transformers>=4.40.0 accelerate>=0.30.0 safetensors>=0.4.0 --quiet",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-
-    {
-      "method": "log",
-      "params": {
-        "html": "<p style='padding:0 20px'>&#x1F4BE; <strong>Paso 6/6</strong> &mdash; Inicializando datos...</p>"
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "python -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "python -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
-        "on": [{ "event": null, "return": true }]
-      }
-    },
-    {
-      "method": "shell.enter",
-      "params": {
-        "message": "python -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\"",
-        "on": [{ "event": null, "return": true }]
+        "venv": "venv",
+        "message": [
+          "python -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
+          "python -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
+          "python -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\""
+        ]
       }
     },
     {

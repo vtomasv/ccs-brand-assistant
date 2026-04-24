@@ -40,7 +40,7 @@ module.exports = {
         {
           icon: "fa-solid fa-arrow-up-right-from-square",
           text: "Abrir UI",
-          href: "http://localhost:{{port}}/ui/index.html",
+          href: "http://127.0.0.1:{{port}}/ui/index.html",
         },
         {
           icon: "fa-solid fa-stop",
