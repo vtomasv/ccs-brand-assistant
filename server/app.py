@@ -121,6 +121,48 @@ _pull_status: Dict[str, Dict] = {}  # {model: {status, progress, error, started_
 _pull_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
+# TTL (Time-To-Live) para el motor de imágenes embebido
+# Descarga automáticamente el modelo de la RAM tras N minutos de inactividad
+# para liberar recursos en hardware limitado de PYMEs.
+# ---------------------------------------------------------------------------
+_ENGINE_TTL_MINUTES: int = int(os.environ.get("IMAGE_ENGINE_TTL", 10))  # 10 min default
+_engine_ttl_timer: Optional[threading.Timer] = None
+_engine_ttl_lock = threading.Lock()
+
+def _reset_engine_ttl():
+    """Reinicia el temporizador de TTL del motor de imágenes.
+    Llamar después de cada generación para mantener el motor activo.
+    Si no se genera nada en _ENGINE_TTL_MINUTES, el motor se descarga.
+    """
+    global _engine_ttl_timer
+    if not IMAGE_ENGINE_AVAILABLE:
+        return
+    with _engine_ttl_lock:
+        if _engine_ttl_timer is not None:
+            _engine_ttl_timer.cancel()
+        _engine_ttl_timer = threading.Timer(
+            _ENGINE_TTL_MINUTES * 60,
+            _auto_unload_engine,
+        )
+        _engine_ttl_timer.daemon = True  # No bloquea el shutdown del proceso
+        _engine_ttl_timer.start()
+
+def _auto_unload_engine():
+    """Descarga automática del motor de imágenes por inactividad."""
+    global _engine_ttl_timer
+    try:
+        if IMAGE_ENGINE_AVAILABLE and _engine_is_ready():
+            _engine_unload()
+            logging.getLogger("css-brand-assistant").info(
+                f"[TTL] Motor de imágenes descargado tras {_ENGINE_TTL_MINUTES} min de inactividad. "
+                f"RAM liberada."
+            )
+    except Exception as e:
+        logging.getLogger("css-brand-assistant").warning(f"[TTL] Error descargando motor: {e}")
+    with _engine_ttl_lock:
+        _engine_ttl_timer = None
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 logging.basicConfig(
@@ -138,9 +180,24 @@ app = FastAPI(
     version="0.2.0",
 )
 
+# ---------------------------------------------------------------------------
+# CORS: restringido a orígenes locales (seguridad contra ataques cross-origin)
+# Solo el frontend local de Pinokio puede hacer peticiones a la API.
+# ---------------------------------------------------------------------------
+_ALLOWED_ORIGINS = [
+    f"http://127.0.0.1:{PORT}",
+    f"http://localhost:{PORT}",
+    "http://127.0.0.1",
+    "http://localhost",
+    # Pinokio puede servir desde puertos dinámicos
+    "http://127.0.0.1:*",
+    "http://localhost:*",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -323,17 +380,59 @@ def _start_pull_background(model: str) -> None:
 # ---------------------------------------------------------------------------
 # Utilidades de persistencia
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Concurrency control: locks por archivo para evitar corrupción de JSON
+# Protege contra escrituras simultáneas desde peticiones async concurrentes.
+# ---------------------------------------------------------------------------
+_file_locks: Dict[str, asyncio.Lock] = {}
+_file_locks_mutex = threading.Lock()
+
+def _get_file_lock(path: Path) -> asyncio.Lock:
+    """Obtiene o crea un asyncio.Lock para un archivo específico."""
+    key = str(path.resolve())
+    with _file_locks_mutex:
+        if key not in _file_locks:
+            _file_locks[key] = asyncio.Lock()
+        return _file_locks[key]
+
+
 def save_json(path: Path, data: Any) -> None:
-    """Guarda datos como JSON con formato legible."""
+    """Guarda datos como JSON con formato legible (escritura atómica).
+    
+    Usa escritura atómica: escribe a un archivo temporal y luego renombra,
+    evitando corrupción si el proceso se interrumpe durante la escritura.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    # encoding='utf-8' es obligatorio en Windows donde el default es cp1252
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    content = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    # Escritura atómica: escribir a .tmp y luego renombrar
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        # os.replace es atómico en la mayoría de sistemas de archivos
+        import os as _os
+        _os.replace(str(tmp_path), str(path))
+    except Exception:
+        # Fallback: escritura directa si el rename falla
+        if tmp_path.exists():
+            tmp_path.unlink()
+        path.write_text(content, encoding="utf-8")
+
+
+async def save_json_safe(path: Path, data: Any) -> None:
+    """Versión async-safe de save_json con lock por archivo."""
+    lock = _get_file_lock(path)
+    async with lock:
+        save_json(path, data)
 
 
 def load_json(path: Path, default=None) -> Any:
     """Carga JSON desde disco, retorna default si no existe."""
     if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error(f"Error leyendo JSON {path}: {e}")
+            return default if default is not None else {}
     return default if default is not None else {}
 
 
@@ -619,6 +718,81 @@ class AgentConfigUpdate(BaseModel):
     temperature: Optional[float] = None
 
 
+# ---------------------------------------------------------------------------
+# Seguridad: validación anti-SSRF de URLs
+# Bloquea esquemas peligrosos y rangos de IP locales/privados.
+# ---------------------------------------------------------------------------
+import ipaddress
+from urllib.parse import urlparse
+
+_BLOCKED_IP_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),      # Loopback
+    ipaddress.ip_network("10.0.0.0/8"),       # Privada clase A
+    ipaddress.ip_network("172.16.0.0/12"),    # Privada clase B
+    ipaddress.ip_network("192.168.0.0/16"),   # Privada clase C
+    ipaddress.ip_network("169.254.0.0/16"),   # Link-local / metadatos cloud
+    ipaddress.ip_network("0.0.0.0/8"),        # Red actual
+    ipaddress.ip_network("::1/128"),           # Loopback IPv6
+    ipaddress.ip_network("fc00::/7"),          # Privada IPv6
+    ipaddress.ip_network("fe80::/10"),         # Link-local IPv6
+]
+
+def validate_url_safe(url: str) -> str:
+    """Valida que una URL sea segura para hacer requests (anti-SSRF).
+    
+    Reglas:
+      - Solo esquemas http y https permitidos
+      - No se permiten IPs locales/privadas ni metadatos cloud
+      - No se permite el esquema file://
+      - El hostname debe existir y ser resolvible
+    
+    Retorna la URL limpia si es válida, lanza HTTPException si no.
+    """
+    import socket
+    
+    parsed = urlparse(url.strip())
+    
+    # 1. Solo http/https
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Esquema de URL no permitido: '{parsed.scheme}'. Solo http y https."
+        )
+    
+    # 2. Hostname requerido
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="URL inválida: no tiene hostname.")
+    
+    # 3. Bloquear hostnames locales conocidos
+    blocked_hosts = {"localhost", "localhost.localdomain", "0.0.0.0", "[::]"}
+    if hostname.lower() in blocked_hosts:
+        raise HTTPException(
+            status_code=400,
+            detail="No se permite analizar URLs locales (localhost)."
+        )
+    
+    # 4. Resolver hostname y verificar que no apunte a IP privada/local
+    try:
+        resolved_ips = socket.getaddrinfo(hostname, None)
+        for family, _, _, _, sockaddr in resolved_ips:
+            ip_str = sockaddr[0]
+            ip_obj = ipaddress.ip_address(ip_str)
+            for network in _BLOCKED_IP_NETWORKS:
+                if ip_obj in network:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"URL bloqueada: '{hostname}' resuelve a IP privada/local ({ip_str})."
+                    )
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pudo resolver el hostname: '{hostname}'."
+        )
+    
+    return url.strip()
+
+
 class WebsiteAnalyzeRequest(BaseModel):
     brand_id: str
     url: str
@@ -820,6 +994,9 @@ async def analyze_website(brand_id: str, request: WebsiteAnalyzeRequest,
     Inicia el análisis del sitio web de la marca.
     El análisis se ejecuta en background y actualiza el ADN borrador.
     """
+    # Validación anti-SSRF: bloquear URLs locales/privadas antes de procesar
+    safe_url = validate_url_safe(request.url)
+    
     brand_file = DATA_DIR / "brands" / brand_id / "brand.json"
     brand = load_json(brand_file)
     if not brand:
@@ -827,11 +1004,11 @@ async def analyze_website(brand_id: str, request: WebsiteAnalyzeRequest,
 
     # Actualizar estado
     brand["onboarding_status"] = "analyzing"
-    brand["website"] = request.url
+    brand["website"] = safe_url
     brand["updated_at"] = datetime.utcnow().isoformat()
     save_json(brand_file, brand)
 
-    background_tasks.add_task(_analyze_website_task, brand_id, request.url)
+    background_tasks.add_task(_analyze_website_task, brand_id, safe_url)
     return {"message": "Análisis iniciado", "brand_id": brand_id, "status": "analyzing"}
 
 
@@ -2115,6 +2292,28 @@ class GenerateImageRequest(BaseModel):
     # Si se envía, tiene prioridad sobre el valor en config.json.
     diffusion_model: Optional[str] = None
     diffusion_steps: Optional[int] = None   # Pasos de inferencia (None = usar config)
+    # Límites de imagen para prevenir Out of Memory (OOM) en hardware limitado
+    width: Optional[int] = None
+    height: Optional[int] = None
+    
+    @classmethod
+    def validate_image_limits(cls, steps: Optional[int], width: Optional[int], height: Optional[int]) -> dict:
+        """Valida y aplica límites máximos a los parámetros de generación.
+        
+        Límites:
+          - steps: 1-100 (default 4 para LCM)
+          - width: 64-1024 (default 512)
+          - height: 64-1024 (default 512)
+        """
+        MAX_STEPS = 100
+        MAX_DIM = 1024
+        MIN_DIM = 64
+        
+        safe_steps = min(max(steps or 4, 1), MAX_STEPS)
+        safe_width = min(max(width or 512, MIN_DIM), MAX_DIM)
+        safe_height = min(max(height or 512, MIN_DIM), MAX_DIM)
+        
+        return {"steps": safe_steps, "width": safe_width, "height": safe_height}
 
 
 def _ensure_model_available(model: str) -> dict:
@@ -2460,15 +2659,23 @@ async def generate_publication_image(campaign_id: str, pub_id: str, req: Generat
     if IMAGE_ENGINE_AVAILABLE and provider in ("auto", "embedded", "diffusers") and not image_b64:
         try:
             logger.info(f"[ImageEngine] Intentando motor embebido con modelo {diffusion_model}")
+            # Aplicar límites de seguridad a los parámetros de generación
+            safe_params = GenerateImageRequest.validate_image_limits(
+                steps=diffusion_steps,
+                width=getattr(req, 'width', None),
+                height=getattr(req, 'height', None),
+            )
             engine_result = _engine_generate(
                 prompt=prompt,
                 negative_prompt="blurry, low quality, distorted, ugly, watermark, text, logo",
                 model_id=diffusion_model,
-                steps=diffusion_steps,
-                width=512,
-                height=512,
+                steps=safe_params["steps"],
+                width=safe_params["width"],
+                height=safe_params["height"],
                 guidance_scale=1.0,
             )
+            # Reiniciar el temporizador de TTL tras cada generación exitosa
+            _reset_engine_ttl()
             if engine_result.get("success") and engine_result.get("image_b64"):
                 image_b64 = engine_result["image_b64"]
                 generation_method = f"embedded_diffusers:{diffusion_model.split('/')[-1]}"
@@ -2656,13 +2863,36 @@ async def generate_publication_image(campaign_id: str, pub_id: str, req: Generat
 def serve_generated_image(filename: str):
     """Sirve imágenes generadas por IA con headers anti-caché.
     Soporta .png (imagen real) y .svg (placeholder cuando Ollama no soporta imágenes).
+    
+    Seguridad: sanitiza filename para prevenir Path Traversal (../../../etc/passwd).
     """
     # Soportar filename con query string (ej: pub_id.png?t=123)
-    clean_filename = filename.split("?")[0]
+    raw_filename = filename.split("?")[0]
+    
+    # SEGURIDAD: extraer solo el nombre base del archivo, eliminando cualquier
+    # secuencia de directorio (../, ..\\ , rutas absolutas, etc.)
+    clean_filename = Path(raw_filename).name
+    
+    # Validar que el filename no esté vacío y tenga extensión válida
+    if not clean_filename or clean_filename.startswith("."):
+        raise HTTPException(status_code=400, detail="Nombre de archivo inválido.")
+    
+    allowed_extensions = {".png", ".svg", ".jpg", ".jpeg", ".webp"}
+    if not any(clean_filename.lower().endswith(ext) for ext in allowed_extensions):
+        raise HTTPException(status_code=400, detail="Extensión de archivo no permitida.")
+    
     img_dir = DATA_DIR / "exports" / "images"
 
     # Buscar el archivo exacto primero
     img_path = img_dir / clean_filename
+    
+    # SEGURIDAD: verificar que la ruta resuelta está dentro de img_dir
+    try:
+        img_path.resolve().relative_to(img_dir.resolve())
+    except ValueError:
+        logger.warning(f"Intento de path traversal bloqueado: {filename}")
+        raise HTTPException(status_code=400, detail="Ruta de archivo no permitida.")
+    
     if not img_path.exists():
         # Si pidieron .png pero solo existe .svg (placeholder), servir el SVG
         if clean_filename.endswith(".png"):
@@ -2685,7 +2915,6 @@ def serve_generated_image(filename: str):
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0",
-            "Access-Control-Allow-Origin": "*",
         },
     )
 
