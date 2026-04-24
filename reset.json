@@ -7,26 +7,21 @@
       }
     },
     {
-      "when": "{{platform !== 'win32'}}",
-      "method": "shell.run",
+      "method": "fs.rm",
       "params": {
-        "message": "rm -rf venv",
-        "path": "{{cwd}}"
+        "path": "venv"
       }
     },
     {
-      "when": "{{platform === 'win32'}}",
-      "method": "shell.run",
+      "method": "log",
       "params": {
-        "message": "rmdir /S /Q venv",
-        "path": "{{cwd}}"
+        "html": "<p>&#x2705; Desinstalado. Los datos del usuario se conservan en la carpeta 'data'.</p>"
       }
     },
     {
       "method": "notify",
       "params": {
-        "html": "CCS Brand Assistant desinstalado. Los datos del usuario se conservan en la carpeta 'data'.",
-        "type": "info"
+        "html": "CCS Brand Assistant desinstalado. Los datos del usuario se conservan en la carpeta 'data'."
       }
     }
   ]

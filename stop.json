@@ -1,19 +1,15 @@
 {
   "run": [
     {
-      "when": "{{platform !== 'win32'}}",
-      "method": "shell.run",
+      "method": "script.stop",
       "params": {
-        "message": "pkill -f 'server/app.py' 2>/dev/null || true",
-        "path": "{{cwd}}"
+        "uri": "start.json"
       }
     },
     {
-      "when": "{{platform === 'win32'}}",
-      "method": "shell.run",
+      "method": "log",
       "params": {
-        "message": "taskkill /F /FI \"WINDOWTITLE eq server/app.py\" 2>nul & taskkill /F /IM python.exe /FI \"MEMUSAGE gt 1\" 2>nul & echo STOPPED",
-        "path": "{{cwd}}"
+        "html": "<p>&#x23F9;&#xFE0F; CCS Brand Assistant detenido.</p>"
       }
     }
   ]

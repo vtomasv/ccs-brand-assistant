@@ -4,7 +4,7 @@
     {
       "method": "log",
       "params": {
-        "html": "<p>&#x25B6;&#xFE0F; Iniciando CCS Brand Assistant en puerto {{port}}...</p>"
+        "html": "<p>&#x25B6;&#xFE0F; Iniciando CCS Brand Assistant...</p>"
       }
     },
 
@@ -12,36 +12,63 @@
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 & sleep 3 && python server/app.py",
-        "path": "{{cwd}}",
-        "venv": "venv",
-        "conda": { "skip": true },
+        "message": "ollama serve > /dev/null 2>&1 &"
+      }
+    },
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "start /B ollama serve"
+      }
+    },
+
+    {
+      "method": "shell.start",
+      "params": {
         "env": {
           "PORT": "{{port}}",
-          "DATA_DIR": "{{cwd}}/data",
+          "DATA_DIR": "{{cwd}}{{os.platform() === 'win32' ? '\\\\data' : '/data'}}",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "PYTHONIOENCODING": "utf-8",
           "PYTHONUTF8": "1"
         }
       }
     },
-
     {
-      "when": "{{platform === 'win32'}}",
-      "method": "shell.run",
+      "method": "shell.enter",
       "params": {
-        "message": "start /B ollama serve && ping -n 4 127.0.0.1 > nul && python server/app.py",
-        "path": "{{cwd}}",
-        "venv": "venv",
-        "conda": { "skip": true },
-        "env": {
-          "PORT": "{{port}}",
-          "DATA_DIR": "{{cwd}}\\data",
-          "OLLAMA_URL": "http://127.0.0.1:11434",
-          "PYTHONIOENCODING": "utf-8",
-          "PYTHONUTF8": "1"
+        "message": "{{os.platform() === 'win32' ? 'venv\\\\Scripts\\\\activate' : 'source venv/bin/activate'}}",
+        "on": [{ "event": null, "return": true }]
+      }
+    },
+    {
+      "method": "shell.enter",
+      "params": {
+        "message": "{{os.platform() === 'win32' ? 'python' : 'python3'}} server/app.py",
+        "on": [{
+          "event": "/(http:\\/\\/[0-9.:]+)/",
+          "return": "{{event.matches[0][1]}}"
+        }]
+      }
+    },
+    {
+      "method": "self.set",
+      "params": {
+        "session.json": {
+          "url": "{{input}}"
         }
       }
+    },
+    {
+      "method": "browser.open",
+      "params": {
+        "uri": "{{self.session.url}}/ui/index.html",
+        "target": "_blank"
+      }
+    },
+    {
+      "method": "process.wait"
     }
   ]
 }
