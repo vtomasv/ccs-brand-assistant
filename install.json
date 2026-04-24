@@ -80,8 +80,9 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "python -m venv venv --clear",
-        "path": "{{cwd}}"
+        "message": "python -m venv venv",
+        "path": "{{cwd}}",
+        "conda": { "skip": true }
       }
     },
 
@@ -96,7 +97,8 @@
       "params": {
         "message": "pip install --upgrade pip --quiet",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -104,7 +106,8 @@
       "params": {
         "message": "pip install -r requirements-core.txt",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -112,7 +115,8 @@
       "params": {
         "message": "pip install playwright>=1.40.0 --quiet",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -120,7 +124,8 @@
       "params": {
         "message": "playwright install chromium",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -128,7 +133,8 @@
       "params": {
         "message": "pip install torch --index-url https://download.pytorch.org/whl/cpu --quiet",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -136,7 +142,8 @@
       "params": {
         "message": "pip install diffusers>=0.30.0 transformers>=4.40.0 accelerate>=0.30.0 safetensors>=0.4.0 --quiet",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
 
@@ -151,7 +158,8 @@
       "params": {
         "message": "python -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -159,7 +167,8 @@
       "params": {
         "message": "python -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {
@@ -167,7 +176,8 @@
       "params": {
         "message": "python -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\"",
         "path": "{{cwd}}",
-        "venv": "venv"
+        "venv": "venv",
+        "conda": { "skip": true }
       }
     },
     {

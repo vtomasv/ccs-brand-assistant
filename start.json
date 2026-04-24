@@ -15,6 +15,7 @@
         "message": "ollama serve > /dev/null 2>&1 & sleep 3 && python server/app.py",
         "path": "{{cwd}}",
         "venv": "venv",
+        "conda": { "skip": true },
         "env": {
           "PORT": "{{port}}",
           "DATA_DIR": "{{cwd}}/data",
@@ -32,9 +33,10 @@
         "message": "start /B ollama serve && ping -n 4 127.0.0.1 > nul && python server/app.py",
         "path": "{{cwd}}",
         "venv": "venv",
+        "conda": { "skip": true },
         "env": {
           "PORT": "{{port}}",
-          "DATA_DIR": "{{cwd}}/data",
+          "DATA_DIR": "{{cwd}}\\data",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "PYTHONIOENCODING": "utf-8",
           "PYTHONUTF8": "1"
