@@ -40,17 +40,15 @@
       }
     },
     {
-      "method": "self.set",
+      "method": "local.set",
       "params": {
-        "session.json": {
-          "url": "{{input.event[0]}}"
-        }
+        "url": "{{input.event[0]}}"
       }
     },
     {
       "method": "browser.open",
       "params": {
-        "uri": "{{self.session.url}}/ui/index.html"
+        "uri": "{{local.url}}/ui/index.html"
       }
     }
   ]
