@@ -202,6 +202,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ---------------------------------------------------------------------------
+# Middleware: Headers de seguridad HTTP
+# ---------------------------------------------------------------------------
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Agrega headers de seguridad estándar a todas las respuestas."""
+
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response: StarletteResponse = await call_next(request)
+        # Prevenir clickjacking: no permitir que la UI se cargue en iframes externos
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        # Prevenir MIME sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # Habilitar protección XSS del navegador
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Referrer policy restrictiva
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Permissions policy: deshabilitar APIs innecesarias
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=()"
+        )
+        # Content Security Policy: solo permitir recursos del mismo origen
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self' data:; "
+            "connect-src 'self' http://127.0.0.1:* http://localhost:*; "
+            "frame-ancestors 'self'"
+        )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+
 # ---------------------------------------------------------------------------
 # Startup: crear directorios y copiar defaults
 # ---------------------------------------------------------------------------

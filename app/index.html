@@ -764,6 +764,7 @@
       .adn-grid { grid-template-columns: 1fr; }
     }
   </style>
+  <script src="lib/purify.min.js"></script>
 </head>
 <body>
 
@@ -1204,12 +1205,38 @@ function apiUrl(path) {
   return API_BASE + '/api' + path;
 }
 
+/**
+ * Sanitiza HTML usando DOMPurify para prevenir XSS.
+ * Permite solo tags seguros (formato, listas, links) y bloquea scripts, iframes, etc.
+ */
+function safeHTML(html) {
+  if (!html) return '';
+  if (typeof DOMPurify !== 'undefined') {
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li',
+                     'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table',
+                     'thead', 'tbody', 'tr', 'th', 'td', 'img', 'pre', 'code',
+                     'blockquote', 'hr', 'small', 'sup', 'sub', 'label', 'input',
+                     'select', 'option', 'textarea', 'button', 'svg', 'path',
+                     'circle', 'rect', 'line', 'text', 'g', 'defs', 'use'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'id', 'style', 'src', 'alt',
+                     'width', 'height', 'type', 'value', 'placeholder', 'checked',
+                     'selected', 'disabled', 'readonly', 'onclick', 'onchange',
+                     'oninput', 'data-*', 'viewBox', 'fill', 'stroke', 'stroke-width',
+                     'd', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2',
+                     'transform', 'xmlns', 'font-size', 'text-anchor'],
+      ADD_ATTR: ['onclick', 'onchange', 'oninput'],
+    });
+  }
+  return html;
+}
+
 function showNotification(message, type) {
   type = type || 'info';
   var area = document.getElementById('notificationArea');
   var el = document.createElement('div');
   el.className = 'notification ' + type;
-  el.innerHTML = message;
+  el.innerHTML = safeHTML(message);
   area.appendChild(el);
   setTimeout(function() {
     if (el.parentNode) el.parentNode.removeChild(el);
@@ -1394,7 +1421,7 @@ function loadDashboardStats() {
             html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();selectCampaignFromDashboard(\'' + c.id + '\')">Ver</button>';
             html += '</div>';
           }
-          recentEl.innerHTML = html;
+          recentEl.innerHTML = safeHTML(html);
         } else {
           recentEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay campañas aún. <a href="#" onclick="navigateTo(\'campaigns\')">Crear primera campaña</a></div>';
         }
@@ -1423,7 +1450,7 @@ function loadDashboardStats() {
             html += '</div></div>';
           }
           html += '</div>';
-          channelEl.innerHTML = html;
+          channelEl.innerHTML = safeHTML(html);
         } else {
           channelEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay publicaciones aún.</div>';
         }
@@ -1507,7 +1534,7 @@ function loadBrands() {
       renderBrands();
     })
     .catch(function(e) {
-      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error al cargar marcas</div><div class="empty-desc">' + e.message + '</div></div>';
+      content.innerHTML = safeHTML('<div class="empty-state"><div class="empty-title">Error al cargar marcas</div><div class="empty-desc">' + escapeHtml(e.message) + '</div></div>');
     });
 }
 
@@ -1541,7 +1568,7 @@ function renderBrands() {
     html += '</div>';
   }
   html += '</div>';
-  content.innerHTML = html;
+  content.innerHTML = safeHTML(html);
 }
 
 function selectBrand(brandId) {
@@ -1692,7 +1719,7 @@ function loadADN() {
 function renderADNEmpty() {
   var content = document.getElementById('adnContent');
   var brand = state.activeBrand;
-  content.innerHTML = '<div class="card"><div class="card-header"><div><div class="card-title">ADN de ' + escapeHtml(brand.name) + '</div><div class="card-subtitle">Aún no se ha construido el ADN de esta marca</div></div></div>' +
+  content.innerHTML = safeHTML('<div class="card"><div class="card-header"><div><div class="card-title">ADN de ' + escapeHtml(brand.name) + '</div><div class="card-subtitle">Aún no se ha construido el ADN de esta marca</div></div></div>' +
     '<div class="empty-state" style="padding:32px 0">' +
     '<div class="empty-icon">&#9670;</div>' +
     '<div class="empty-title">Sin ADN todavía</div>' +
@@ -1758,7 +1785,7 @@ function renderADN(adn) {
   }
 
   html += '</div>';
-  content.innerHTML = html;
+  content.innerHTML = safeHTML(html);
 }
 
 function approveADN() {
@@ -1787,7 +1814,7 @@ function loadInterview() {
     return;
   }
 
-  content.innerHTML = '<div class="card"><div class="card-header"><div><div class="card-title">Entrevista de Descubrimiento</div><div class="card-subtitle">Marca: ' + escapeHtml(state.activeBrand.name) + '</div></div>' +
+  content.innerHTML = safeHTML('<div class="card"><div class="card-header"><div><div class="card-title">Entrevista de Descubrimiento</div><div class="card-subtitle">Marca: ' + escapeHtml(state.activeBrand.name) + '</div></div>' +
     '<div style="display:flex;gap:8px;align-items:center">' +
     '<button class="btn btn-secondary btn-sm" onclick="startInterview()">Reiniciar</button>' +
     '<button class="btn btn-danger btn-sm" id="btnFinishInterview" onclick="finishInterview()" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">Finalizar entrevista</button>' +
@@ -1965,7 +1992,7 @@ function loadCampaigns() {
       renderCampaigns();
     })
     .catch(function(e) {
-      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+      content.innerHTML = safeHTML('<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + escapeHtml(e.message) + '</div></div>');
     });
 }
 
@@ -2017,7 +2044,7 @@ function renderCampaigns() {
     html += '</div>';
   }
   html += '</div>';
-  content.innerHTML = html;
+  content.innerHTML = safeHTML(html);
 
   // Reanudar polling para campañas que aún están generando
   for (var k = 0; k < state.campaigns.length; k++) {
@@ -2200,7 +2227,7 @@ function _updateCampaignCardProgress(campaignId, prog) {
     html += '<div style="font-size:11px;color:#ef4444">❌ Error: ' + (prog.error || 'error desconocido') + '</div>';
   }
 
-  progressEl.innerHTML = html;
+  progressEl.innerHTML = safeHTML(html);
 }
 
 // Compatibilidad: pollCampaignStatus antiguo
@@ -2265,7 +2292,7 @@ function loadCalendar() {
       renderCalendar();
     })
     .catch(function(e) {
-      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+      content.innerHTML = safeHTML('<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + escapeHtml(e.message) + '</div></div>');
     });
 }
 
@@ -2385,7 +2412,7 @@ function renderCalendar() {
   html += '</div>';
 
   html += '</div>'; // /card
-  content.innerHTML = html;
+  content.innerHTML = safeHTML(html);
   content.setAttribute('data-publications', JSON.stringify(filteredPubs));
 }
 
@@ -2457,7 +2484,7 @@ function calChangeView(view) {
     html += '</div>';
     html += renderPublicationsList(filtered);
     html += '</div>';
-    content.innerHTML = html;
+    content.innerHTML = safeHTML(html);
   } else {
     renderCalendar();
   }
@@ -2708,7 +2735,7 @@ function renderPubEditor(pub) {
   html += '</div>';
   html += '</div>';
 
-  document.getElementById('pubEditorContent').innerHTML = html;
+  document.getElementById('pubEditorContent').innerHTML = safeHTML(html);
   document.getElementById('pubEditorContent').setAttribute('data-pub-id', pub.id);
 }
 
@@ -2864,7 +2891,7 @@ function generateImageWithAI(pubId) {
       if (data.image_url) {
         var container = document.getElementById('pubPreviewImageContainer');
         if (container) {
-          container.innerHTML = '<img src="' + escapeHtml(data.image_url) + '?t=' + Date.now() + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />';
+          container.innerHTML = safeHTML('<img src="' + escapeHtml(data.image_url) + '?t=' + Date.now() + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />');
         }
         if (data.warning) {
           showNotification('⚠️ ' + data.warning, 'info');
@@ -3245,7 +3272,7 @@ function _loadImageProviderStatus() {
         html += '</div>';
       }
 
-      el.innerHTML = html;
+      el.innerHTML = safeHTML(html);
     })
     .catch(function() {
       el.innerHTML = '<span style="color:var(--text-muted)">No se pudo verificar proveedores de imagen</span>';
@@ -3487,7 +3514,7 @@ function loadAgents() {
       renderAgents(data.agents || []);
     })
     .catch(function(e) {
-      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+      content.innerHTML = safeHTML('<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + escapeHtml(e.message) + '</div></div>');
     });
 }
 
@@ -3568,7 +3595,7 @@ function renderAgents(agents) {
     html += '</div>'; // /card
   }
   html += '</div>';
-  content.innerHTML = html;
+  content.innerHTML = safeHTML(html);
 }
 
 function toggleSkillEditor(agentId, skillName) {
@@ -3725,7 +3752,7 @@ function loadAudit() {
       renderAudit(data.entries || []);
     })
     .catch(function(e) {
-      content.innerHTML = '<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + e.message + '</div></div>';
+      content.innerHTML = safeHTML('<div class="empty-state"><div class="empty-title">Error</div><div class="empty-desc">' + escapeHtml(e.message) + '</div></div>');
     });
 }
 
@@ -3761,7 +3788,7 @@ function renderAudit(entries) {
     html += '</tr>';
   }
   html += '</tbody></table></div></div>';
-  content.innerHTML = html;
+  content.innerHTML = safeHTML(html);
 }
 
 // ============================================================
