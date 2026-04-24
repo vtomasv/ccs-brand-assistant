@@ -19,13 +19,12 @@
       "method": "shell.run",
       "params": {
         "venv": "venv",
-        "message": "python server/app.py",
+        "message": "python server/app.py --port {{port}}",
         "on": [{
           "event": "/(http:\\/\\/[0-9.:]+)/",
           "done": true
         }],
         "env": {
-          "PORT": "{{port}}",
           "DATA_DIR": "{{cwd}}{{platform === 'win32' ? '\\\\data' : '/data'}}",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "PYTHONIOENCODING": "utf-8",

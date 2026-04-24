@@ -44,7 +44,21 @@ APP_DIR  = BASE_DIR / "app"
 DATA_DIR = BASE_DIR / "data"
 DEFAULTS_DIR = BASE_DIR / "defaults"
 
-PORT = int(os.environ.get("PORT", 7860))
+def _parse_port():
+    """Obtener puerto: 1) argumento --port, 2) env PORT, 3) default 7860."""
+    import argparse
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--port", type=int, default=None)
+    args, _ = parser.parse_known_args()
+    if args.port is not None:
+        return args.port
+    raw = os.environ.get("PORT", "7860")
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return 7860
+
+PORT = _parse_port()
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
 # ---------------------------------------------------------------------------
