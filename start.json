@@ -19,29 +19,27 @@
       "method": "shell.run",
       "params": {
         "venv": "venv",
-        "message": "python server/app.py --port {{port}}",
-        "on": [{
-          "event": "/(http:\\/\\/[0-9.:]+)/",
-          "done": true
-        }],
+        "path": ".",
         "env": {
-          "DATA_DIR": "{{cwd}}{{platform === 'win32' ? '\\\\data' : '/data'}}",
-          "OLLAMA_URL": "http://127.0.0.1:11434",
           "PYTHONIOENCODING": "utf-8",
           "PYTHONUTF8": "1"
+        },
+        "message": "python server/app.py --port {{port}}",
+        "on": [{ "event": "/(http:\\/\\/[0-9.:]+)/", "done": true }]
+      }
+    },
+    {
+      "method": "self.set",
+      "params": {
+        "session.json": {
+          "url": "{{input.event[0]}}"
         }
       }
     },
     {
-      "method": "local.set",
+      "method": "browser.open",
       "params": {
-        "url": "{{input.event[0]}}"
-      }
-    },
-    {
-      "method": "log",
-      "params": {
-        "html": "<p>&#x2705; CCS Brand Assistant iniciado en <strong>{{local.url}}</strong></p>"
+        "uri": "{{self.session.url}}/ui/index.html"
       }
     }
   ]
