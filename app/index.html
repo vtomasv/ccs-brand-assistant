@@ -1421,7 +1421,7 @@ function loadDashboardStats() {
             html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();selectCampaignFromDashboard(\'' + c.id + '\')">Ver</button>';
             html += '</div>';
           }
-          recentEl.innerHTML = safeHTML(html);
+          recentEl.innerHTML = html;
         } else {
           recentEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay campañas aún. <a href="#" onclick="navigateTo(\'campaigns\')">Crear primera campaña</a></div>';
         }
@@ -1450,7 +1450,7 @@ function loadDashboardStats() {
             html += '</div></div>';
           }
           html += '</div>';
-          channelEl.innerHTML = safeHTML(html);
+          channelEl.innerHTML = html;
         } else {
           channelEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay publicaciones aún.</div>';
         }
@@ -1568,7 +1568,7 @@ function renderBrands() {
     html += '</div>';
   }
   html += '</div>';
-  content.innerHTML = safeHTML(html);
+  content.innerHTML = html;
 }
 
 function selectBrand(brandId) {
@@ -1785,7 +1785,7 @@ function renderADN(adn) {
   }
 
   html += '</div>';
-  content.innerHTML = safeHTML(html);
+  content.innerHTML = html;
 }
 
 function approveADN() {
@@ -2044,7 +2044,7 @@ function renderCampaigns() {
     html += '</div>';
   }
   html += '</div>';
-  content.innerHTML = safeHTML(html);
+  content.innerHTML = html;
 
   // Reanudar polling para campañas que aún están generando
   for (var k = 0; k < state.campaigns.length; k++) {
@@ -2412,7 +2412,7 @@ function renderCalendar() {
   html += '</div>';
 
   html += '</div>'; // /card
-  content.innerHTML = safeHTML(html);
+  content.innerHTML = html;
   content.setAttribute('data-publications', JSON.stringify(filteredPubs));
 }
 
@@ -2484,7 +2484,7 @@ function calChangeView(view) {
     html += '</div>';
     html += renderPublicationsList(filtered);
     html += '</div>';
-    content.innerHTML = safeHTML(html);
+    content.innerHTML = html;
   } else {
     renderCalendar();
   }
@@ -2735,7 +2735,7 @@ function renderPubEditor(pub) {
   html += '</div>';
   html += '</div>';
 
-  document.getElementById('pubEditorContent').innerHTML = safeHTML(html);
+  document.getElementById('pubEditorContent').innerHTML = html;
   document.getElementById('pubEditorContent').setAttribute('data-pub-id', pub.id);
 }
 
@@ -3272,7 +3272,7 @@ function _loadImageProviderStatus() {
         html += '</div>';
       }
 
-      el.innerHTML = safeHTML(html);
+      el.innerHTML = html;
     })
     .catch(function() {
       el.innerHTML = '<span style="color:var(--text-muted)">No se pudo verificar proveedores de imagen</span>';
@@ -3595,7 +3595,7 @@ function renderAgents(agents) {
     html += '</div>'; // /card
   }
   html += '</div>';
-  content.innerHTML = safeHTML(html);
+  content.innerHTML = html;
 }
 
 function toggleSkillEditor(agentId, skillName) {
@@ -3788,7 +3788,7 @@ function renderAudit(entries) {
     html += '</tr>';
   }
   html += '</tbody></table></div></div>';
-  content.innerHTML = safeHTML(html);
+  content.innerHTML = html;
 }
 
 // ============================================================
