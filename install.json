@@ -56,9 +56,17 @@
       }
     },
     {
+      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "{{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}}"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 || (ollama serve > /dev/null 2>&1 & sleep 5) ; {{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} || echo MODEL_DOWNLOAD_DEFERRED"
+      }
+    },
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "(curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 || (start /B ollama serve && ping -n 6 127.0.0.1 > nul)) && ({{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} || echo MODEL_DOWNLOAD_DEFERRED)"
       }
     },
 

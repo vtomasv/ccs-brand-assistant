@@ -1727,7 +1727,7 @@ function renderADNEmpty() {
     '<div style="display:flex;gap:10px;justify-content:center">' +
     (brand.website ? '<button class="btn btn-accent" onclick="analyzeWebsite(\'' + brand.id + '\',\'' + escapeHtml(brand.website) + '\')">Analizar sitio web</button>' : '') +
     '<button class="btn btn-primary" onclick="navigateTo(\'interview\')">Iniciar entrevista</button>' +
-    '</div></div></div>';
+    '</div></div></div>');
 }
 
 function renderADN(adn) {
@@ -1830,7 +1830,7 @@ function loadInterview() {
     '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-accent btn-sm" onclick="navigateTo(\'adn\')">Ver ADN actualizado</button>' +
-    '</div></div>';
+    '</div></div>');
 
   // Auto-iniciar entrevista
   startInterview();
