@@ -5,14 +5,14 @@
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 &"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && echo OLLAMA_ALREADY_RUNNING || (ollama serve > /dev/null 2>&1 & sleep 3 && echo OLLAMA_STARTED)"
       }
     },
     {
       "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "start /B ollama serve"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 && echo OLLAMA_ALREADY_RUNNING || (start /B ollama serve && ping -n 4 127.0.0.1 > nul && echo OLLAMA_STARTED)"
       }
     },
     {

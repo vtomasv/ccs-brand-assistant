@@ -38,14 +38,14 @@
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "ollama serve > /dev/null 2>&1 & sleep 5 && (curl -s http://127.0.0.1:11434/api/tags > /dev/null && echo OLLAMA_READY || echo OLLAMA_SKIP)"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && echo OLLAMA_ALREADY_RUNNING || (ollama serve > /dev/null 2>&1 & sleep 5 && (curl -s http://127.0.0.1:11434/api/tags > /dev/null && echo OLLAMA_READY || echo OLLAMA_SKIP))"
       }
     },
     {
       "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "start /B ollama serve && ping -n 6 127.0.0.1 > nul && (curl -s http://127.0.0.1:11434/api/tags > nul && echo OLLAMA_READY || echo OLLAMA_SKIP)"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 && echo OLLAMA_ALREADY_RUNNING || (start /B ollama serve && ping -n 6 127.0.0.1 > nul && (curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 && echo OLLAMA_READY || echo OLLAMA_SKIP))"
       }
     },
 
@@ -59,14 +59,14 @@
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 || (ollama serve > /dev/null 2>&1 & sleep 5) ; {{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} || echo MODEL_DOWNLOAD_DEFERRED"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && ({{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} || echo MODEL_DOWNLOAD_DEFERRED) || echo OLLAMA_NOT_RUNNING_SKIP_PULL"
       }
     },
     {
       "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "(curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 || (start /B ollama serve && ping -n 6 127.0.0.1 > nul)) && ({{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} || echo MODEL_DOWNLOAD_DEFERRED)"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 && ({{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} || echo MODEL_DOWNLOAD_DEFERRED) || echo OLLAMA_NOT_RUNNING_SKIP_PULL"
       }
     },
 
