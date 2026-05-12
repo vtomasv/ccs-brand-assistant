@@ -7,9 +7,19 @@
       }
     },
     {
-      "method": "script.stop",
+      "when": "{{platform !== 'win32'}}",
+      "method": "shell.run",
       "params": {
-        "uri": "start.json"
+        "message": "pkill -f 'python server/app.py' 2>/dev/null; pkill -f 'python3 server/app.py' 2>/dev/null; echo 'Servidor detenido'",
+        "path": "{{cwd}}"
+      }
+    },
+    {
+      "when": "{{platform === 'win32'}}",
+      "method": "shell.run",
+      "params": {
+        "message": "taskkill /F /FI \"WINDOWTITLE eq server*\" /IM python.exe 2>nul & FOR /F \"tokens=5\" %P IN ('netstat -aon ^| findstr :{{self.session && self.session.url ? new URL(self.session.url).port : '42003'}} ^| findstr LISTENING') DO taskkill /F /PID %P 2>nul & echo Servidor detenido",
+        "path": "{{cwd}}"
       }
     },
     {
