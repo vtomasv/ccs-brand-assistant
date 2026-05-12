@@ -158,7 +158,7 @@
       "method": "fs.write",
       "params": {
         "path": "data/config.json",
-        "text": "{{JSON.stringify({version:'0.3.0',installedAt:new Date().toISOString(),platform:platform,ram:ram,default_model:ram<6?'llama3.2:1b':ram<12?'llama3.2:3b':'llama3.1:8b',image_provider:'auto',diffusion_model:'SimianLuo/LCM_Dreamshaper_v7',diffusion_steps:4},null,2)}}"
+        "text": "{{JSON.stringify({version:'0.3.0',installedAt:new Date().toISOString(),platform:platform,ram:ram,default_model:'llama3.1:8b',image_provider:'auto',diffusion_model:'SimianLuo/LCM_Dreamshaper_v7',diffusion_steps:4},null,2)}}"
       }
     },
     {

@@ -281,7 +281,7 @@ async def startup_event():
         config = {
             "version": "0.1.0",
             "created_at": datetime.utcnow().isoformat(),
-            "default_model": "llama3.2:3b",
+            "default_model": "llama3.1:8b",
             "ollama_url": OLLAMA_URL,
             "language": "es",
         }
@@ -310,7 +310,7 @@ async def _verify_and_fix_models():
         # Leer modelo configurado
         config_file = DATA_DIR / "config.json"
         config = load_json(config_file, {})
-        configured_model = config.get("default_model", "llama3.2:3b")
+        configured_model = config.get("default_model", "llama3.1:8b")
 
         # Verificar si el modelo configurado está disponible
         model_base = configured_model.split(":")[0]
@@ -712,7 +712,7 @@ def call_ollama(model: str, system_prompt: str, user_message: str,
 def get_active_model() -> str:
     """Retorna el modelo activo configurado."""
     config = load_json(DATA_DIR / "config.json", {})
-    return config.get("default_model", "llama3.2:3b")
+    return config.get("default_model", "llama3.1:8b")
 
 
 # ---------------------------------------------------------------------------
@@ -1184,7 +1184,7 @@ def _compute_grade(tps: int, model_size_gb: float, ram_gb: float) -> dict:
 @app.post("/api/models/pull")
 def pull_model_endpoint(body: dict):
     """Inicia la descarga de un modelo Ollama en background.
-    Body: {"model": "llama3.2:3b"}
+    Body: {"model": "llama3.1:8b"}
     Retorna inmediatamente con el estado inicial de la descarga.
     """
     model = body.get("model", "").strip()
