@@ -626,3 +626,135 @@ class TestPromptProtection:
             content = prompt_file.read_text(encoding="utf-8")
             assert "SEGURIDAD" in content or "seguridad" in content or "SECURITY" in content, \
                 f"Prompt {prompt_file.name} no tiene cláusula de seguridad"
+
+
+# ============================================================
+# TEST 8: PROPORCIONES DE IMAGEN POR RED SOCIAL
+# ============================================================
+
+class TestImageAspectRatios:
+    """Tests para las proporciones de imagen por red social en prompts."""
+
+    def test_aspect_ratio_map_exists(self):
+        """El mapeo de proporciones por canal debe existir."""
+        import app as app_module
+        assert hasattr(app_module, "_CHANNEL_ASPECT_RATIOS")
+        ratios = app_module._CHANNEL_ASPECT_RATIOS
+        assert "Instagram" in ratios
+        assert "Facebook" in ratios
+        assert "LinkedIn" in ratios
+        assert "Twitter" in ratios
+        assert "WhatsApp" in ratios
+
+    def test_instagram_is_square(self):
+        """Instagram debe ser 1:1 (cuadrada)."""
+        import app as app_module
+        info = app_module._get_aspect_ratio_info("Instagram")
+        assert info["ratio"] == "1:1"
+        assert info["pixels"] == "1080x1080"
+
+    def test_facebook_is_landscape(self):
+        """Facebook debe ser 16:9 (horizontal)."""
+        import app as app_module
+        info = app_module._get_aspect_ratio_info("Facebook")
+        assert info["ratio"] == "16:9"
+        assert info["pixels"] == "1200x675"
+
+    def test_linkedin_is_landscape(self):
+        """LinkedIn debe ser 16:9 (horizontal)."""
+        import app as app_module
+        info = app_module._get_aspect_ratio_info("LinkedIn")
+        assert info["ratio"] == "16:9"
+
+    def test_twitter_is_landscape(self):
+        """Twitter/X debe ser 16:9 (horizontal)."""
+        import app as app_module
+        info = app_module._get_aspect_ratio_info("Twitter")
+        assert info["ratio"] == "16:9"
+
+    def test_whatsapp_is_square(self):
+        """WhatsApp debe ser 1:1 (cuadrada)."""
+        import app as app_module
+        info = app_module._get_aspect_ratio_info("WhatsApp")
+        assert info["ratio"] == "1:1"
+
+    def test_unknown_channel_defaults_to_square(self):
+        """Un canal desconocido debe usar 1:1 por defecto."""
+        import app as app_module
+        info = app_module._get_aspect_ratio_info("UnknownChannel")
+        assert info["ratio"] == "1:1"
+
+    def test_enhance_request_has_channel_field(self):
+        """ImagePromptEnhanceRequest debe tener campo channel."""
+        import app as app_module
+        fields = app_module.ImagePromptEnhanceRequest.model_fields
+        assert "channel" in fields
+
+    def test_external_request_has_channel_field(self):
+        """ImagePromptExternalRequest debe tener campo channel."""
+        import app as app_module
+        fields = app_module.ImagePromptExternalRequest.model_fields
+        assert "channel" in fields
+
+    def test_enhance_endpoint_accepts_channel(self, brand_with_campaign):
+        """El endpoint enhance debe aceptar el campo channel."""
+        ctx = brand_with_campaign
+        client = ctx["client"]
+        data_dir = ctx["data_dir"]
+
+        # Configurar un modelo en config.json para que no falle con 503
+        config = {"default_model": "llama3.2", "model": "llama3.2"}
+        with open(data_dir / "config.json", "w") as f:
+            json.dump(config, f)
+
+        with patch("app.call_ollama", return_value="Enhanced prompt for Instagram 1:1"):
+            response = client.post(
+                "/api/image-prompt/enhance",
+                json={"prompt": "A product photo", "channel": "Instagram"},
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert "enhanced_prompt" in data
+
+    def test_external_endpoint_accepts_channel(self, brand_with_campaign):
+        """El endpoint external debe aceptar el campo channel."""
+        ctx = brand_with_campaign
+        client = ctx["client"]
+        data_dir = ctx["data_dir"]
+
+        # Configurar un modelo en config.json
+        config = {"default_model": "llama3.2", "model": "llama3.2"}
+        with open(data_dir / "config.json", "w") as f:
+            json.dump(config, f)
+
+        with patch("app.call_ollama", return_value="Professional product shot, square composition --ar 1:1"):
+            response = client.post(
+                "/api/image-prompt/external",
+                json={
+                    "prompt": "A product photo",
+                    "post_text": "Check out our new product!",
+                    "channel": "Facebook",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert "external_prompt" in data
+
+    def test_frontend_sends_channel_to_enhance(self):
+        """El frontend debe enviar el canal en la llamada a enhance."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        # Verificar que enhanceImagePromptWithAI obtiene el canal
+        assert "data-pub-channel" in content
+        # Verificar que se envía channel en el JSON
+        idx = content.find("function enhanceImagePromptWithAI")
+        func_code = content[idx:idx+1000]
+        assert "channel: pubChannel" in func_code
+
+    def test_frontend_sends_channel_to_external(self):
+        """El frontend debe enviar el canal en la llamada a external."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        idx = content.find("function generateExternalPrompt")
+        func_code = content[idx:idx+2000]
+        assert "channel: pubChannel" in func_code

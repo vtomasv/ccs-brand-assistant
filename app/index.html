@@ -3243,6 +3243,7 @@ function renderPubEditor(pub) {
 
   document.getElementById('pubEditorContent').innerHTML = html;
   document.getElementById('pubEditorContent').setAttribute('data-pub-id', pub.id);
+  document.getElementById('pubEditorContent').setAttribute('data-pub-channel', pub.channel || '');
 }
 
 function updatePreview() {
@@ -3431,10 +3432,15 @@ function enhanceImagePromptWithAI() {
   var btn = document.getElementById('btnEnhancePrompt');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Mejorando...'; }
 
+  // Obtener el canal de la publicación actual
+  var pubChannel = '';
+  var editorContent = document.getElementById('pubEditorContent');
+  if (editorContent) pubChannel = editorContent.getAttribute('data-pub-channel') || '';
+
   fetch(apiUrl('/image-prompt/enhance'), {
     method: 'POST',
     headers: {'Content-Type': 'application/json; charset=utf-8'},
-    body: JSON.stringify({ prompt: currentPrompt }),
+    body: JSON.stringify({ prompt: currentPrompt, channel: pubChannel }),
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -3477,6 +3483,11 @@ function generateExternalPrompt() {
   var btn = document.getElementById('btnExternalPrompt');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Generando...'; }
 
+  // Obtener el canal de la publicación actual
+  var pubChannel = '';
+  var editorContent = document.getElementById('pubEditorContent');
+  if (editorContent) pubChannel = editorContent.getAttribute('data-pub-channel') || '';
+
   fetch(apiUrl('/image-prompt/external'), {
     method: 'POST',
     headers: {'Content-Type': 'application/json; charset=utf-8'},
@@ -3484,6 +3495,7 @@ function generateExternalPrompt() {
       prompt: currentPrompt,
       post_text: pubText,
       hashtags: hashtags,
+      channel: pubChannel,
     }),
   })
     .then(function(r) { return r.json(); })
