@@ -13,7 +13,7 @@ module.exports = {
 
   menu: async (kernel, info) => {
     // Verificar si el plugin está instalado (venv creado)
-    const installed = await kernel.exists(__dirname, "venv")
+    var installed = await kernel.exists(__dirname, "venv")
 
     if (!installed) {
       return [
@@ -27,7 +27,7 @@ module.exports = {
     }
 
     // Verificar si el servidor está corriendo
-    const running = await kernel.script.running(__dirname, "start.json")
+    var running = await kernel.script.running(__dirname, "start.json")
 
     if (running) {
       return [
@@ -40,7 +40,7 @@ module.exports = {
         {
           icon: "fa-solid fa-arrow-up-right-from-square",
           text: "Abrir UI",
-          href: "http://127.0.0.1:{{port}}/ui/index.html",
+          href: "start.json",
         },
         {
           icon: "fa-solid fa-stop",

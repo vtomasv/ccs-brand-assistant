@@ -1,12 +1,13 @@
 # ============================================================
-# pull_model.ps1 — Descarga el modelo de IA más adecuado
-# según la RAM disponible del sistema.
+# pull_model.ps1 — Descarga modelos de IA necesarios
+# Siempre descarga llama3.1:8b (requerido por agentes clave)
+# y adicionalmente un modelo ligero según RAM disponible.
 # Compatible con entornos Pinokio (conda base).
 # ============================================================
 
 $ErrorActionPreference = "Continue"
 
-Write-Host "=== Descargando modelo de IA ===" -ForegroundColor Cyan
+Write-Host "=== Descargando modelos de IA ===" -ForegroundColor Cyan
 
 # Función para encontrar el ejecutable de Ollama
 function Find-Ollama {
@@ -28,8 +29,8 @@ function Find-Ollama {
 $ollamaExe = Find-Ollama
 
 if (-not $ollamaExe) {
-    Write-Host "AVISO: Ollama no disponible. Saltando descarga de modelo." -ForegroundColor Yellow
-    Write-Host "Instala Ollama desde https://ollama.com/download y luego ejecuta 'ollama pull llama3.2:3b'" -ForegroundColor Yellow
+    Write-Host "AVISO: Ollama no disponible. Saltando descarga de modelos." -ForegroundColor Yellow
+    Write-Host "Instala Ollama desde https://ollama.com/download y luego ejecuta 'ollama pull llama3.1:8b'" -ForegroundColor Yellow
     exit 0
 }
 
@@ -41,7 +42,7 @@ try {
 } catch { }
 
 if (-not $ollamaRunning) {
-    Write-Host "AVISO: Ollama no esta corriendo. Saltando descarga de modelo." -ForegroundColor Yellow
+    Write-Host "AVISO: Ollama no esta corriendo. Saltando descarga de modelos." -ForegroundColor Yellow
     exit 0
 }
 
@@ -49,48 +50,71 @@ if (-not $ollamaRunning) {
 $ramGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
 Write-Host "RAM detectada: ${ramGB}GB" -ForegroundColor Cyan
 
-# Seleccionar modelo según RAM disponible
-if ($ramGB -lt 6) {
-    $model = "llama3.2:1b"
-    Write-Host "RAM < 6GB: usando modelo ligero $model" -ForegroundColor Yellow
-} elseif ($ramGB -lt 12) {
-    $model = "llama3.2:3b"
-    Write-Host "RAM 6-12GB: usando modelo mediano $model" -ForegroundColor Green
+# --- Paso 1: Siempre descargar llama3.1:8b (requerido por brand_interviewer y campaign_strategist) ---
+$requiredModel = "llama3.1:8b"
+Write-Host ""
+Write-Host "Paso 1: Verificando modelo principal $requiredModel..." -ForegroundColor Cyan
+
+function Test-ModelExists($modelName) {
+    try {
+        $tagsJson = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 5 -UseBasicParsing
+        $tags = ($tagsJson.Content | ConvertFrom-Json).models
+        $found = $tags | Where-Object { $_.name -like "$modelName*" }
+        return [bool]$found
+    } catch {
+        return $false
+    }
+}
+
+if (Test-ModelExists $requiredModel) {
+    Write-Host "OK: Modelo $requiredModel ya esta disponible localmente." -ForegroundColor Green
 } else {
-    $model = "llama3.1:8b"
-    Write-Host "RAM >= 12GB: usando modelo completo $model" -ForegroundColor Green
-}
-
-# Verificar si el modelo ya está descargado
-Write-Host "Verificando si $model ya esta descargado..."
-try {
-    $tagsJson = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 5 -UseBasicParsing
-    $tags = ($tagsJson.Content | ConvertFrom-Json).models
-    $modelExists = $tags | Where-Object { $_.name -like "$model*" }
-
-    if ($modelExists) {
-        Write-Host "OK: Modelo $model ya esta disponible localmente." -ForegroundColor Green
-        exit 0
+    Write-Host "Descargando $requiredModel (~4.7 GB, puede tardar varios minutos)..." -ForegroundColor Yellow
+    try {
+        & $ollamaExe pull $requiredModel
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "OK: Modelo $requiredModel descargado correctamente." -ForegroundColor Green
+        } else {
+            Write-Host "AVISO: La descarga de $requiredModel puede haber fallado (codigo $LASTEXITCODE)." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "ERROR al descargar $requiredModel : $_" -ForegroundColor Red
     }
-} catch {
-    Write-Host "No se pudo verificar modelos existentes. Intentando descarga de todas formas..."
 }
 
-# Descargar el modelo
-Write-Host "Descargando $model (puede tardar varios minutos segun tu conexion)..." -ForegroundColor Yellow
-Write-Host "Este proceso es necesario solo la primera vez." -ForegroundColor Cyan
+# --- Paso 2: Descargar modelo adicional según RAM ---
+if ($ramGB -lt 6) {
+    $extraModel = "llama3.2:1b"
+    Write-Host ""
+    Write-Host "Paso 2: RAM < 6GB, descargando modelo ligero adicional $extraModel..." -ForegroundColor Yellow
+} elseif ($ramGB -lt 12) {
+    $extraModel = "llama3.2:3b"
+    Write-Host ""
+    Write-Host "Paso 2: RAM 6-12GB, descargando modelo adicional $extraModel..." -ForegroundColor Green
+} else {
+    $extraModel = $null
+    Write-Host ""
+    Write-Host "Paso 2: RAM >= 12GB, $requiredModel es suficiente. No se necesita modelo adicional." -ForegroundColor Green
+}
 
-try {
-    & $ollamaExe pull $model
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "OK: Modelo $model descargado correctamente." -ForegroundColor Green
+if ($extraModel) {
+    if (Test-ModelExists $extraModel) {
+        Write-Host "OK: Modelo $extraModel ya esta disponible localmente." -ForegroundColor Green
     } else {
-        Write-Host "AVISO: La descarga del modelo puede haber fallado (codigo $LASTEXITCODE)." -ForegroundColor Yellow
-        Write-Host "Puedes descargarlo manualmente con: ollama pull $model" -ForegroundColor Yellow
+        Write-Host "Descargando $extraModel..." -ForegroundColor Yellow
+        try {
+            & $ollamaExe pull $extraModel
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "OK: Modelo $extraModel descargado correctamente." -ForegroundColor Green
+            } else {
+                Write-Host "AVISO: La descarga de $extraModel puede haber fallado (codigo $LASTEXITCODE)." -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "ERROR al descargar $extraModel : $_" -ForegroundColor Red
+        }
     }
-} catch {
-    Write-Host "ERROR al descargar modelo: $_" -ForegroundColor Red
-    Write-Host "Ejecuta manualmente: ollama pull $model" -ForegroundColor Yellow
 }
 
+Write-Host ""
+Write-Host "=== Descarga de modelos completada ===" -ForegroundColor Green
 exit 0

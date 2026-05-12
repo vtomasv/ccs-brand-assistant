@@ -757,6 +757,126 @@
       height: 14px;
     }
 
+    /* ===== READINESS BANNER ===== */
+    .readiness-banner {
+      padding: 14px 20px;
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      animation: fadeIn 0.4s ease;
+    }
+    .readiness-banner.ready {
+      background: linear-gradient(135deg, rgba(61,174,43,0.08), rgba(13,215,0,0.06));
+      border: 1px solid rgba(61,174,43,0.3);
+      color: #1a7a12;
+    }
+    .readiness-banner.not-ready {
+      background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.04));
+      border: 1px solid rgba(245,158,11,0.3);
+      color: #92400e;
+    }
+    .readiness-banner.error {
+      background: linear-gradient(135deg, rgba(220,38,38,0.08), rgba(220,38,38,0.04));
+      border: 1px solid rgba(220,38,38,0.3);
+      color: #991b1b;
+    }
+    .readiness-icon { font-size: 20px; flex-shrink: 0; }
+    .readiness-text { flex: 1; }
+    .readiness-text .readiness-title { font-weight: 700; margin-bottom: 2px; }
+    .readiness-text .readiness-detail { font-size: 12px; opacity: 0.8; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ===== GLOBAL LOADING OVERLAY (sync requests) ===== */
+    .global-loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 35, 64, 0.35);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    .global-loading-overlay.active { display: flex; }
+    .global-loading-content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px 40px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    .global-loading-content .loading-spinner {
+      width: 32px; height: 32px;
+      border-width: 3px;
+      margin-bottom: 12px;
+    }
+    .global-loading-content .loading-label {
+      font-size: 14px; font-weight: 600; color: var(--ccs-azul-oscuro);
+    }
+    .global-loading-content .loading-sublabel {
+      font-size: 12px; color: var(--text-muted); margin-top: 4px;
+    }
+
+    /* ===== ANALYZE PROGRESS PANEL ===== */
+    .analyze-progress-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .analyze-progress-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    }
+    .analyze-progress-header .loading-spinner { width: 20px; height: 20px; }
+    .analyze-progress-title { font-size: 14px; font-weight: 700; color: var(--ccs-azul-oscuro); }
+    .analyze-progress-step {
+      font-size: 12px; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .analyze-progress-bar {
+      height: 8px; background: var(--bg-base); border-radius: 4px; overflow: hidden; margin-bottom: 6px;
+    }
+    .analyze-progress-fill {
+      height: 100%; background: linear-gradient(90deg, var(--ccs-azul-oscuro), var(--ccs-celeste));
+      border-radius: 4px; transition: width 0.5s ease;
+    }
+    .analyze-progress-pct {
+      font-size: 11px; color: var(--text-muted); text-align: right;
+    }
+    .analyze-steps-list {
+      display: flex; flex-direction: column; gap: 4px; margin-top: 10px;
+    }
+    .analyze-step-item {
+      display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 4px 0;
+    }
+    .analyze-step-item .step-icon { width: 18px; text-align: center; flex-shrink: 0; }
+    .analyze-step-item.done .step-icon { color: var(--success); }
+    .analyze-step-item.active .step-icon { color: var(--ccs-azul); }
+    .analyze-step-item.pending .step-icon { color: var(--text-muted); opacity: 0.4; }
+    .analyze-step-item.active { font-weight: 600; color: var(--ccs-azul-oscuro); }
+
+    /* ===== MODEL PERFORMANCE SEMAPHORE ===== */
+    .model-perf-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .model-perf-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .model-tps {
+      font-size: 10px; color: var(--text-muted); font-weight: 400;
+    }
+
     /* ===== RESPONSIVE ===== */
     @media (max-width: 900px) {
       .grid-4 { grid-template-columns: 1fr 1fr; }
@@ -767,6 +887,15 @@
   <script src="lib/purify.min.js"></script>
 </head>
 <body>
+
+<!-- Global Loading Overlay (para requests síncronos) -->
+<div class="global-loading-overlay" id="globalLoadingOverlay">
+  <div class="global-loading-content">
+    <div class="loading-spinner"></div>
+    <div class="loading-label" id="globalLoadingLabel">Procesando...</div>
+    <div class="loading-sublabel" id="globalLoadingSublabel">Por favor espera un momento</div>
+  </div>
+</div>
 
 <!-- Notificaciones -->
 <div class="notification-area" id="notificationArea"></div>
@@ -841,6 +970,8 @@
 
     <!-- ===== PAGE: DASHBOARD ===== -->
     <div class="page active" id="page-dashboard">
+      <!-- Readiness Banner -->
+      <div id="readinessBanner"></div>
       <div class="grid-4" style="margin-bottom:20px">
         <div class="stat-card">
           <div class="stat-label">Marcas registradas</div>
@@ -1551,7 +1682,7 @@ function renderBrands() {
     var b = state.brands[i];
     var initial = (b.name || '?').charAt(0).toUpperCase();
     var isSelected = state.activeBrand && state.activeBrand.id === b.id;
-    html += '<div class="brand-card' + (isSelected ? ' selected' : '') + '" onclick="selectBrand(\'' + b.id + '\')">';
+    html += '<div class="brand-card' + (isSelected ? ' selected' : '') + '" data-brand-progress="' + b.id + '" onclick="selectBrand(\'' + b.id + '\')">'; 
     html += '<div class="brand-avatar">' + initial + '</div>';
     html += '<div class="brand-name">' + escapeHtml(b.name) + '</div>';
     html += '<div class="brand-sector">' + escapeHtml(b.sector || 'Sin sector') + '</div>';
@@ -1564,11 +1695,21 @@ function renderBrands() {
     if (b.website && b.onboarding_status === 'pending') {
       html += '<button class="btn btn-sm btn-accent" onclick="event.stopPropagation();analyzeWebsite(\'' + b.id + '\',\'' + escapeHtml(b.website) + '\')">Analizar web</button>';
     }
+    if (b.onboarding_status === 'analyzing') {
+      html += '<button class="btn btn-sm btn-secondary" disabled style="cursor:default"><span class="loading-spinner" style="width:10px;height:10px;border-width:1.5px"></span> Analizando...</button>';
+    }
     html += '</div>';
     html += '</div>';
   }
   html += '</div>';
   content.innerHTML = html;
+
+  // Iniciar polling para marcas en estado analyzing (después de insertar en DOM)
+  for (var j = 0; j < state.brands.length; j++) {
+    if (state.brands[j].onboarding_status === 'analyzing') {
+      startAnalyzeProgressPolling(state.brands[j].id);
+    }
+  }
 }
 
 function selectBrand(brandId) {
@@ -1636,7 +1777,7 @@ function createBrand() {
 
 function analyzeWebsite(brandId, url) {
   if (!url) { showNotification('La marca no tiene sitio web configurado', 'warning'); return; }
-  showNotification('Iniciando análisis del sitio web... Esto puede tomar unos minutos.', 'info');
+  showGlobalLoading('Iniciando an\u00e1lisis del sitio web...', 'Conectando con ' + url);
 
   fetch(apiUrl('/brands/' + brandId + '/analyze-website'), {
     method: 'POST',
@@ -1645,7 +1786,8 @@ function analyzeWebsite(brandId, url) {
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      showNotification('Análisis iniciado. El ADN se construirá en segundo plano.', 'success');
+      hideGlobalLoading();
+      showNotification('An\u00e1lisis iniciado. El ADN se construir\u00e1 en segundo plano. Puedes ver el progreso en la tarjeta de la marca.', 'success');
       // Actualizar estado local
       for (var i = 0; i < state.brands.length; i++) {
         if (state.brands[i].id === brandId) {
@@ -1654,11 +1796,14 @@ function analyzeWebsite(brandId, url) {
         }
       }
       renderBrands();
+      // Iniciar polling de progreso detallado
+      startAnalyzeProgressPolling(brandId);
       // Polling para verificar cuando termine
       pollBrandStatus(brandId);
     })
     .catch(function(e) {
-      showNotification('Error al iniciar análisis: ' + e.message, 'error');
+      hideGlobalLoading();
+      showNotification('Error al iniciar an\u00e1lisis: ' + e.message, 'error');
     });
 }
 
@@ -1766,15 +1911,29 @@ function renderADN(adn) {
   for (var i = 0; i < adnFields.length; i++) {
     var f = adnFields[i];
     var val = fields[f.key];
-    var displayVal = '';
-    if (Array.isArray(val)) {
-      displayVal = val.length > 0 ? val.join(', ') : '';
-    } else {
-      displayVal = val || '';
-    }
+    var displayVal = safeDisplayValue(val);
+
     html += '<div class="adn-field">';
     html += '<div class="adn-field-label">' + f.label + '</div>';
-    html += '<div class="adn-field-value' + (displayVal ? '' : ' empty') + '">' + (displayVal ? escapeHtml(String(displayVal)) : 'Sin información') + '</div>';
+
+    // Renderizado especial para paleta de colores
+    if (f.key === 'color_palette' && Array.isArray(val) && val.length > 0) {
+      html += '<div class="adn-field-value" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+      for (var ci = 0; ci < val.length; ci++) {
+        var color = String(val[ci]).trim();
+        if (color.charAt(0) === '#') {
+          html += '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;background:' + color + '20;border:1px solid ' + color + '40;font-size:11px">';
+          html += '<span style="width:12px;height:12px;border-radius:50%;background:' + escapeHtml(color) + '"></span>';
+          html += escapeHtml(color);
+          html += '</span>';
+        } else {
+          html += '<span style="font-size:12px">' + escapeHtml(color) + '</span>';
+        }
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="adn-field-value' + (displayVal ? '' : ' empty') + '">' + (displayVal ? escapeHtml(displayVal) : 'Sin informaci\u00f3n') + '</div>';
+    }
     html += '</div>';
   }
   html += '</div>';
@@ -3805,18 +3964,299 @@ function escapeHtml(text) {
 }
 
 // ============================================================
-// INICIALIZACIÓN
+// GLOBAL LOADING OVERLAY
+// ============================================================
+function showGlobalLoading(label, sublabel) {
+  var overlay = document.getElementById('globalLoadingOverlay');
+  var labelEl = document.getElementById('globalLoadingLabel');
+  var subEl = document.getElementById('globalLoadingSublabel');
+  if (labelEl) labelEl.textContent = label || 'Procesando...';
+  if (subEl) subEl.textContent = sublabel || 'Por favor espera un momento';
+  if (overlay) overlay.classList.add('active');
+}
+
+function hideGlobalLoading() {
+  var overlay = document.getElementById('globalLoadingOverlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+// ============================================================
+// READINESS CHECK
+// ============================================================
+function checkReadiness() {
+  fetch(apiUrl('/readiness'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var banner = document.getElementById('readinessBanner');
+      if (!banner) return;
+
+      if (data.ready) {
+        banner.innerHTML = '<div class="readiness-banner ready">' +
+          '<div class="readiness-icon">&#10004;</div>' +
+          '<div class="readiness-text">' +
+          '<div class="readiness-title">Sistema listo para usar</div>' +
+          '<div class="readiness-detail">Ollama activo con ' + data.models_count + ' modelo(s) disponible(s). Todas las funciones est\u00e1n operativas.</div>' +
+          '</div></div>';
+      } else {
+        var issueHtml = '';
+        var issues = data.issues || [];
+        for (var i = 0; i < issues.length; i++) {
+          var issue = issues[i];
+          issueHtml += '<div style="margin-top:4px;font-size:11px">';
+          if (issue.type === 'models_downloading' && issue.pulls) {
+            for (var p = 0; p < issue.pulls.length; p++) {
+              var pull = issue.pulls[p];
+              issueHtml += '<div style="display:flex;align-items:center;gap:8px;margin-top:4px">';
+              issueHtml += '<span class="loading-spinner" style="width:12px;height:12px;border-width:2px"></span>';
+              issueHtml += '<span>' + escapeHtml(pull.model) + ' — ' + (pull.progress || 0) + '%</span>';
+              issueHtml += '</div>';
+            }
+          } else {
+            issueHtml += escapeHtml(issue.message);
+          }
+          issueHtml += '</div>';
+        }
+
+        var hasCritical = issues.some(function(i) { return i.severity === 'critical'; });
+        var bannerClass = hasCritical ? 'error' : 'not-ready';
+        var icon = hasCritical ? '&#9888;' : '&#9881;';
+        var title = hasCritical ? 'Sistema no disponible' : 'Preparando el sistema...';
+        var detail = hasCritical
+          ? 'Hay problemas cr\u00edticos que impiden el funcionamiento. Revisa los detalles a continuaci\u00f3n.'
+          : 'Estamos configurando todo para ti. En unos momentos estar\u00e1 listo para usar.';
+
+        banner.innerHTML = '<div class="readiness-banner ' + bannerClass + '">' +
+          '<div class="readiness-icon">' + icon + '</div>' +
+          '<div class="readiness-text">' +
+          '<div class="readiness-title">' + title + '</div>' +
+          '<div class="readiness-detail">' + detail + '</div>' +
+          issueHtml +
+          '</div></div>';
+
+        // Si no est\u00e1 listo, seguir verificando cada 5 segundos
+        setTimeout(checkReadiness, 5000);
+      }
+    })
+    .catch(function() {
+      var banner = document.getElementById('readinessBanner');
+      if (banner) {
+        banner.innerHTML = '<div class="readiness-banner error">' +
+          '<div class="readiness-icon">&#9888;</div>' +
+          '<div class="readiness-text">' +
+          '<div class="readiness-title">Conectando con el servidor...</div>' +
+          '<div class="readiness-detail">Esperando que el servidor backend est\u00e9 disponible. Esto puede tomar unos segundos.</div>' +
+          '</div></div>';
+        setTimeout(checkReadiness, 3000);
+      }
+    });
+}
+
+// ============================================================
+// ANALYZE PROGRESS (escaneo de sitio web)
+// ============================================================
+var _analyzeProgressIntervals = {};
+
+function startAnalyzeProgressPolling(brandId) {
+  if (_analyzeProgressIntervals[brandId]) return;
+
+  var STEP_NAMES = [
+    'Preparando an\u00e1lisis',
+    'Extrayendo contenido HTML',
+    'Analizando meta tags y datos estructurados',
+    'Extrayendo colores y tipograf\u00eda',
+    'Procesando contenido textual',
+    'Generando ADN con inteligencia artificial',
+    'Procesando respuesta de IA',
+    'Guardando resultados'
+  ];
+
+  _analyzeProgressIntervals[brandId] = setInterval(function() {
+    fetch(apiUrl('/brands/' + brandId + '/analyze-progress'))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var panel = document.getElementById('analyzeProgress_' + brandId);
+        if (!data.analyzing) {
+          clearInterval(_analyzeProgressIntervals[brandId]);
+          delete _analyzeProgressIntervals[brandId];
+          if (panel) panel.remove();
+          return;
+        }
+
+        if (!panel) {
+          // Intentar insertar el panel en la tarjeta de marca
+          var brandCard = document.querySelector('[data-brand-progress="' + brandId + '"]');
+          if (!brandCard) return;
+          panel = document.createElement('div');
+          panel.id = 'analyzeProgress_' + brandId;
+          panel.className = 'analyze-progress-panel';
+          brandCard.appendChild(panel);
+        }
+
+        var currentStep = data.step || 0;
+        var totalSteps = data.total_steps || 8;
+        var pct = data.progress_pct || 0;
+
+        var html = '<div class="analyze-progress-header">';
+        html += '<span class="loading-spinner"></span>';
+        html += '<span class="analyze-progress-title">Escaneando sitio web...</span>';
+        html += '</div>';
+        html += '<div class="analyze-progress-step">Paso ' + currentStep + ' de ' + totalSteps + ': ' + escapeHtml(data.step_name || '') + '</div>';
+        if (data.detail) {
+          html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-style:italic">' + escapeHtml(data.detail) + '</div>';
+        }
+        html += '<div class="analyze-progress-bar"><div class="analyze-progress-fill" style="width:' + pct + '%"></div></div>';
+        html += '<div class="analyze-progress-pct">' + pct + '% completado</div>';
+
+        // Lista de pasos
+        html += '<div class="analyze-steps-list">';
+        for (var s = 0; s < STEP_NAMES.length; s++) {
+          var stepNum = s + 1;
+          var cls = stepNum < currentStep ? 'done' : (stepNum === currentStep ? 'active' : 'pending');
+          var icon = stepNum < currentStep ? '&#10003;' : (stepNum === currentStep ? '&#9654;' : '&#9675;');
+          html += '<div class="analyze-step-item ' + cls + '">';
+          html += '<span class="step-icon">' + icon + '</span>';
+          html += '<span>' + STEP_NAMES[s] + '</span>';
+          html += '</div>';
+        }
+        html += '</div>';
+
+        panel.innerHTML = html;
+      })
+      .catch(function() {});
+  }, 2000);
+}
+
+// ============================================================
+// MODEL PERFORMANCE SEMAPHORE
+// ============================================================
+function loadModelPerformance() {
+  fetch(apiUrl('/hardware/performance'))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      state._hardwarePerf = data;
+      // Actualizar los badges de modelos en el dashboard
+      updateModelBadgesInDashboard(data);
+    })
+    .catch(function() {});
+}
+
+function getModelPerfBadgeHtml(modelName) {
+  if (!state._hardwarePerf || !state._hardwarePerf.models) return '';
+  var models = state._hardwarePerf.models;
+  for (var i = 0; i < models.length; i++) {
+    var m = models[i];
+    if (m.model === modelName || modelName.indexOf(m.model.split(':')[0]) === 0) {
+      return '<span class="model-perf-badge" style="background:' + m.grade_color + '20;color:' + m.grade_color + '">' +
+        '<span class="model-perf-dot" style="background:' + m.grade_color + '"></span>' +
+        m.grade + ' &middot; ' + m.estimated_tps + ' tok/s' +
+        '</span>';
+    }
+  }
+  return '';
+}
+
+function updateModelBadgesInDashboard(perfData) {
+  var sysContent = document.getElementById('systemStatusContent');
+  if (!sysContent) return;
+
+  // Re-render the system status with performance badges
+  fetch(apiUrl('/ollama/status'))
+    .then(function(r) { return r.json(); })
+    .then(function(ollamaData) {
+      if (!ollamaData.available) return;
+
+      var hw = perfData.hardware || {};
+      var modelsPerf = perfData.models || [];
+
+      var html = '<div style="margin-bottom:8px;font-size:12px;color:var(--success)">&#10003; Ollama est\u00e1 corriendo</div>';
+
+      // Hardware info
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;padding:8px;background:var(--bg-base);border-radius:6px">';
+      html += '<strong>Hardware:</strong> ';
+      html += hw.ram_gb + ' GB RAM';
+      if (hw.gpu_name && hw.gpu_name !== 'No detectada') {
+        html += ' &middot; ' + escapeHtml(hw.gpu_name);
+        if (hw.vram_gb > 0) html += ' (' + hw.vram_gb + ' GB)';
+      }
+      html += ' &middot; ' + hw.cpu_count + ' cores';
+      html += '</div>';
+
+      if (modelsPerf.length > 0) {
+        html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Modelos disponibles:</div>';
+        html += '<div style="display:flex;flex-direction:column;gap:8px">';
+        for (var i = 0; i < modelsPerf.length; i++) {
+          var m = modelsPerf[i];
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border)">';
+          html += '<span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(m.model) + '</span>';
+          html += '<span class="model-perf-badge" style="background:' + m.grade_color + '18;color:' + m.grade_color + ';border:1px solid ' + m.grade_color + '40">';
+          html += '<span class="model-perf-dot" style="background:' + m.grade_color + '"></span>';
+          html += m.grade_label;
+          html += '</span>';
+          html += '<span class="model-tps">' + m.estimated_tps + ' tok/s</span>';
+          // RAM usage bar
+          var ramPct = Math.min(m.ram_pct || 0, 100);
+          html += '<div style="width:50px;height:6px;background:var(--border);border-radius:3px;overflow:hidden" title="Uso de RAM: ' + ramPct + '%">';
+          var barColor = ramPct > 80 ? 'var(--danger)' : (ramPct > 50 ? 'var(--warning)' : 'var(--success)');
+          html += '<div style="height:100%;width:' + ramPct + '%;background:' + barColor + ';border-radius:3px"></div>';
+          html += '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+      } else if (ollamaData.models && ollamaData.models.length > 0) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+        for (var j = 0; j < ollamaData.models.length; j++) {
+          html += '<span style="background:rgba(13,61,166,0.10);color:var(--ccs-azul-oscuro);font-size:11px;padding:3px 8px;border-radius:20px">' + ollamaData.models[j] + '</span>';
+        }
+        html += '</div>';
+      }
+
+      sysContent.innerHTML = html;
+    })
+    .catch(function() {});
+}
+
+// ============================================================
+// SAFE VALUE DISPLAY (prevent nested objects from showing as raw text)
+// ============================================================
+function safeDisplayValue(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) {
+    return val.map(function(item) {
+      if (typeof item === 'object' && item !== null) {
+        return JSON.stringify(item);
+      }
+      return String(item);
+    }).join(', ');
+  }
+  if (typeof val === 'object') {
+    try { return JSON.stringify(val); } catch(e) { return String(val); }
+  }
+  return String(val);
+}
+
+// ============================================================
+// INICIALIZACI\u00d3N
 // ============================================================
 function init() {
   // Detectar URL base del API
   API_BASE = window.location.origin;
 
+  // Verificar readiness primero
+  checkReadiness();
+
   // Cargar estado inicial
   loadDashboard();
   checkOllamaStatus();
 
+  // Cargar performance de modelos
+  loadModelPerformance();
+
   // Verificar estado de Ollama cada 30 segundos
   setInterval(checkOllamaStatus, 30000);
+
+  // Actualizar performance cada 60 segundos
+  setInterval(loadModelPerformance, 60000);
 
   // Cargar marcas en background para el badge
   fetch(apiUrl('/brands'))
@@ -3827,6 +4267,13 @@ function init() {
       document.getElementById('statBrands').textContent = state.brands.length;
       var complete = state.brands.filter(function(b) { return b.onboarding_status === 'complete'; }).length;
       document.getElementById('statADN').textContent = complete;
+
+      // Verificar si alguna marca est\u00e1 en estado analyzing para iniciar polling
+      for (var i = 0; i < state.brands.length; i++) {
+        if (state.brands[i].onboarding_status === 'analyzing') {
+          startAnalyzeProgressPolling(state.brands[i].id);
+        }
+      }
     })
     .catch(function() {});
 }

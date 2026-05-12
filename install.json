@@ -71,21 +71,21 @@
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:16px 20px 0'><div style='background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:16px 18px'><div style='display:flex;align-items:center;gap:10px;margin-bottom:12px'><div style='width:28px;height:28px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;flex-shrink:0'>3</div><div><span style='color:#e2e8f0;font-size:14px;font-weight:600'>Descargando modelo de IA</span><span style='color:#64748b;font-size:12px;margin-left:8px'>{{ram < 6 ? 'llama3.2:1b (~700 MB)' : ram < 12 ? 'llama3.2:3b (~2 GB)' : 'llama3.1:8b (~4.7 GB)'}}</span></div></div><div style='background:#1e293b;border-radius:6px;height:4px;overflow:hidden'><div style='width:45%;height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:6px'></div></div><p style='color:#94a3b8;font-size:12px;margin:10px 0 0'>Descargando el modelo de lenguaje. Esto puede tardar varios minutos seg&uacute;n tu conexi&oacute;n...</p></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:16px 20px 0'><div style='background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:16px 18px'><div style='display:flex;align-items:center;gap:10px;margin-bottom:12px'><div style='width:28px;height:28px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;flex-shrink:0'>3</div><div><span style='color:#e2e8f0;font-size:14px;font-weight:600'>Descargando modelos de IA</span><span style='color:#64748b;font-size:12px;margin-left:8px'>llama3.1:8b (~4.7 GB) + {{ram < 6 ? 'llama3.2:1b (~700 MB)' : ram < 12 ? 'llama3.2:3b (~2 GB)' : 'modelo adicional'}}</span></div></div><div style='background:#1e293b;border-radius:6px;height:4px;overflow:hidden'><div style='width:45%;height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:6px'></div></div><p style='color:#94a3b8;font-size:12px;margin:10px 0 0'>Descargando los modelos de lenguaje necesarios. Esto puede tardar varios minutos seg&uacute;n tu conexi&oacute;n...</p></div></div>"
       }
     },
     {
       "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && ({{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} && echo MODEL_DOWNLOADED || echo MODEL_DOWNLOAD_DEFERRED) || echo OLLAMA_NOT_RUNNING_SKIP_PULL"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && (ollama pull llama3.1:8b && echo MODEL_8B_DOWNLOADED && {{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'echo SKIP_EXTRA'}} && echo MODELS_DOWNLOADED || echo MODEL_DOWNLOAD_DEFERRED) || echo OLLAMA_NOT_RUNNING_SKIP_PULL"
       }
     },
     {
       "when": "{{platform === 'win32'}}",
       "method": "shell.run",
       "params": {
-        "message": "curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 && ({{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'ollama pull llama3.1:8b'}} && echo MODEL_DOWNLOADED || echo MODEL_DOWNLOAD_DEFERRED) || echo OLLAMA_NOT_RUNNING_SKIP_PULL"
+        "message": "curl -s http://127.0.0.1:11434/api/tags > nul 2>&1 && (ollama pull llama3.1:8b && echo MODEL_8B_DOWNLOADED && {{ram < 6 ? 'ollama pull llama3.2:1b' : ram < 12 ? 'ollama pull llama3.2:3b' : 'echo SKIP_EXTRA'}} && echo MODELS_DOWNLOADED || echo MODEL_DOWNLOAD_DEFERRED) || echo OLLAMA_NOT_RUNNING_SKIP_PULL"
       }
     },
     {
