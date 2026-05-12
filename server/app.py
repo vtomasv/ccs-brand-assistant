@@ -799,7 +799,7 @@ class CampaignCreate(BaseModel):
     end_date: str
     channels: List[str]
     frequency: str = "diaria"
-    budget: Optional[float] = None
+    channel_distribution: str = "rotate"  # "rotate" = un canal por día rotando, "all" = todos los canales cada día
     restrictions: Optional[str] = None
 
 
@@ -811,6 +811,13 @@ class PublicationUpdate(BaseModel):
     scheduled_at: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+
+
+class PublicationCreate(BaseModel):
+    """Modelo para crear una publicación individual desde el calendario."""
+    channel: str
+    scheduled_date: str  # YYYY-MM-DD
+    scheduled_time: str = "10:00"  # HH:MM
 
 
 class AgentConfigUpdate(BaseModel):
@@ -2106,7 +2113,7 @@ async def create_campaign(brand_id: str, campaign: CampaignCreate,
         "end_date": campaign.end_date,
         "channels": campaign.channels,
         "frequency": campaign.frequency,
-        "budget": campaign.budget,
+        "channel_distribution": campaign.channel_distribution,
         "restrictions": campaign.restrictions,
         "status": "generating",   # generating | active | paused | completed
         "publications_count": 0,
@@ -2198,25 +2205,37 @@ async def _generate_campaign_plan(brand_id: str, campaign_id: str,
         freq_days = freq_map.get(freq_normalized, 1)
 
         # Construir lista de slots (fecha, canal, etapa)
-        # Cada fecha de publicación se asigna a UN solo canal, rotando entre los canales seleccionados.
-        # Ejemplo: frecuencia "cada 2 días" con IG y FB:
-        #   Día 1 → Instagram, Día 3 → Facebook, Día 5 → Instagram, Día 7 → Facebook...
-        # Esto asegura que cada red social reciba publicaciones cada (freq_days * num_canales) días.
+        # Modo "rotate": Cada fecha de publicación se asigna a UN solo canal, rotando.
+        #   Ejemplo: cada 2 días con IG y FB → Día 1 IG, Día 3 FB, Día 5 IG...
+        # Modo "all": Cada fecha de publicación genera una publicación por CADA canal.
+        #   Ejemplo: cada 2 días con IG y FB → Día 1 IG + FB, Día 3 IG + FB...
+        distribution = campaign_data.get("channel_distribution", "rotate")
         slots = []
         channel_index = 0
         for day_offset in range(0, total_days, freq_days):
             current_date = start_dt + timedelta(days=day_offset)
             stage_idx = min(int(day_offset / max(total_days / len(stages), 1)), len(stages) - 1)
             stage = stages[stage_idx]
-            # Asignar UN canal por fecha, rotando
-            channel = channels[channel_index % len(channels)]
-            slots.append({
-                "date": current_date.strftime("%Y-%m-%d"),
-                "channel": channel,
-                "stage": stage["name"],
-                "stage_focus": stage.get("focus", "awareness"),
-            })
-            channel_index += 1
+
+            if distribution == "all":
+                # Modo "all": un slot por cada canal en cada fecha
+                for ch in channels:
+                    slots.append({
+                        "date": current_date.strftime("%Y-%m-%d"),
+                        "channel": ch,
+                        "stage": stage["name"],
+                        "stage_focus": stage.get("focus", "awareness"),
+                    })
+            else:
+                # Modo "rotate" (default): un canal por fecha, rotando
+                channel = channels[channel_index % len(channels)]
+                slots.append({
+                    "date": current_date.strftime("%Y-%m-%d"),
+                    "channel": channel,
+                    "stage": stage["name"],
+                    "stage_focus": stage.get("focus", "awareness"),
+                })
+                channel_index += 1
 
         logger.info(f"[Campaña {campaign_id}] Total slots calculados: {len(slots)} publicaciones")
 
@@ -2656,6 +2675,138 @@ def get_publications(campaign_id: str, channel: Optional[str] = None,
             return {"publications": publications, "total": len(publications)}
 
     raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+
+@app.post("/api/campaigns/{campaign_id}/publications")
+async def create_single_publication(campaign_id: str, pub_data: PublicationCreate,
+                                    background_tasks: BackgroundTasks):
+    """Crea una publicación individual para un día específico del calendario.
+
+    Usa la configuración de la campaña (ADN, objetivo, etapa) para generar
+    el contenido con el LLM en segundo plano.
+    """
+    for camp_dir in (DATA_DIR / "campaigns").iterdir():
+        if camp_dir.is_dir() and campaign_id in camp_dir.name:
+            plan_file = camp_dir / "plan.json"
+            plan = load_json(plan_file, {"publications": []})
+            camp = load_json(camp_dir / "campaign.json", {})
+
+            # Crear publicación base
+            pub_id = str(uuid.uuid4())
+            new_pub = {
+                "id": pub_id,
+                "campaign_id": campaign_id,
+                "brand_id": camp.get("brand_id", ""),
+                "channel": pub_data.channel,
+                "scheduled_at": f"{pub_data.scheduled_date} {pub_data.scheduled_time}",
+                "stage": "Personalizada",
+                "objective": camp.get("objective", ""),
+                "text": "Generando contenido con IA...",
+                "hashtags": [],
+                "cta": "",
+                "image_prompt": "",
+                "status": "generating",
+                "edit_status": "generating",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+
+            # Agregar al plan y guardar
+            plan.setdefault("publications", []).append(new_pub)
+            save_json(plan_file, plan)
+
+            # Actualizar conteo en campaign.json
+            camp["publications_count"] = len(plan["publications"])
+            camp["updated_at"] = datetime.utcnow().isoformat()
+            save_json(camp_dir / "campaign.json", camp)
+
+            # Generar contenido en segundo plano
+            background_tasks.add_task(
+                _generate_single_publication, camp_dir, pub_id, new_pub, camp
+            )
+
+            return new_pub
+
+    raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+
+async def _generate_single_publication(camp_dir, pub_id: str, pub: dict, camp: dict):
+    """Genera el contenido de una publicación individual con el LLM."""
+    import time
+    start = time.time()
+    try:
+        brand_id = camp.get("brand_id", "")
+        adn = load_json(DATA_DIR / "brands" / brand_id / "adn.json") or \
+              load_json(DATA_DIR / "brands" / brand_id / "adn_draft.json", {})
+        adn_summary = json.dumps(adn.get("fields", {}), ensure_ascii=False)[:1500]
+
+        model = get_active_model()
+        system_prompt = get_system_prompt("content_writer") or _get_content_writer_prompt()
+
+        user_message = (
+            f"Genera UNA publicación para {pub['channel']}.\n\n"
+            f"CAMPAÑA: {camp.get('name', '')}\n"
+            f"OBJETIVO: {camp.get('objective', '')}\n"
+            f"PRODUCTO/TEMA: {camp.get('product_or_topic', '')}\n"
+            f"AUDIENCIA: {camp.get('target_audience', '')}\n"
+            f"FECHA: {pub['scheduled_at']}\n\n"
+            f"ADN DE MARCA:\n{adn_summary}\n\n"
+            f"IMPORTANTE: Responde SOLO con JSON válido, sin bloques de código markdown, "
+            f"sin texto adicional antes ni después del JSON.\n"
+            f'Formato: {{"texto_del_post": "...", "hashtags": ["#tag1"], "cta": "...", "image_prompt": "..."}}'
+        )
+
+        result = call_ollama(
+            model, system_prompt, user_message,
+            temperature=0.7,
+            timeout=get_ollama_timeout("default"),
+        )
+        latency = int((time.time() - start) * 1000)
+
+        parsed = _parse_llm_json(result)
+        if parsed:
+            pub["text"] = parsed.get("text") or parsed.get("texto_del_post") or pub.get("text", "")
+            pub["hashtags"] = parsed.get("hashtags", [])
+            pub["cta"] = parsed.get("cta", "")
+            pub["image_prompt"] = parsed.get("image_prompt", "")
+        else:
+            pub["text"] = _strip_markdown_fences(result) if result else \
+                _build_fallback_post_text(pub["channel"], "Personalizada", camp)
+
+        pub["status"] = "pending"
+        pub["edit_status"] = "needs_review"
+        pub["updated_at"] = datetime.utcnow().isoformat()
+
+        # Guardar en plan.json
+        plan_file = camp_dir / "plan.json"
+        plan = load_json(plan_file, {"publications": []})
+        for i, p in enumerate(plan.get("publications", [])):
+            if p.get("id") == pub_id:
+                plan["publications"][i] = pub
+                break
+        save_json(plan_file, plan)
+
+        log_audit("content_writer", "create_single_publication",
+                  {"campaign_id": camp.get("id"), "pub_id": pub_id, "channel": pub["channel"]},
+                  result[:500] if result else "", model, latency, True)
+
+    except Exception as e:
+        logger.error(f"Error generando publicación individual {pub_id}: {e}")
+        pub["text"] = _build_fallback_post_text(pub["channel"], "Personalizada", camp)
+        pub["status"] = "pending"
+        pub["edit_status"] = "needs_review"
+        pub["updated_at"] = datetime.utcnow().isoformat()
+
+        plan_file = camp_dir / "plan.json"
+        plan = load_json(plan_file, {"publications": []})
+        for i, p in enumerate(plan.get("publications", [])):
+            if p.get("id") == pub_id:
+                plan["publications"][i] = pub
+                break
+        save_json(plan_file, plan)
+
+        log_audit("content_writer", "create_single_publication",
+                  {"campaign_id": camp.get("id"), "pub_id": pub_id},
+                  "", get_active_model(), 0, False, str(e))
 
 
 @app.get("/api/campaigns/{campaign_id}/publications/{pub_id}")
