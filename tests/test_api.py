@@ -454,20 +454,39 @@ class TestPinokioConfig:
         assert isinstance(data["run"], list)
         assert len(data["run"]) > 0
 
-    def test_start_json_no_input_event(self):
-        """start.json NO debe contener {{input.event[0]}}."""
+    def test_start_json_no_direct_input_event_in_browser(self):
+        """start.json NO debe usar input.event[0] directamente en browser.open o local variables.
+        
+        Es correcto usar input.event[0] dentro de self.set para capturar la URL
+        emitida por el servidor (patrón oficial de Pinokio), pero NO debe usarse
+        directamente en browser.open ni como variable local para construir URLs."""
         start_path = Path(__file__).parent.parent / "start.json"
-        content = start_path.read_text(encoding="utf-8")
-        assert "input.event[0]" not in content, \
-            "start.json aún contiene la referencia problemática a input.event[0]"
-        assert "input.event" not in content, \
-            "start.json no debe depender de input.event"
+        data = json.loads(start_path.read_text(encoding="utf-8"))
+        for step in data.get("run", []):
+            method = step.get("method", "")
+            params = step.get("params", {})
+            # browser.open NO debe usar input.event directamente
+            if method == "browser.open":
+                uri = params.get("uri", "")
+                assert "input.event" not in uri, \
+                    f"browser.open no debe usar input.event directamente, debe usar self.session.url. URI: {uri}"
+            # No debe haber local variables con input.event (el bug original)
+            if method == "local.set":
+                for k, v in params.items():
+                    if isinstance(v, str) and "input.event" in v:
+                        # local.set con input.event es el patrón viejo que causó el bug
+                        assert False, f"local.set no debe usar input.event (causa bug en Windows): {k}={v}"
 
     def test_start_json_has_port(self):
-        """start.json debe tener un puerto definido (via {{port}} template o hardcoded)."""
+        """start.json debe pasar PORT como env var y usar self.session.url para browser.open."""
         start_path = Path(__file__).parent.parent / "start.json"
         content = start_path.read_text(encoding="utf-8")
-        assert "{{port}}" in content or "42003" in content or "PORT" in content
+        # Debe pasar PORT como variable de entorno
+        assert '"PORT"' in content, "start.json debe pasar PORT como env var"
+        # Debe usar self.set para capturar la URL del servidor
+        assert "self.set" in content, "start.json debe usar self.set para capturar URL"
+        # browser.open debe usar la URL capturada, no {{port}} directamente
+        assert "self.session.url" in content, "browser.open debe usar self.session.url"
 
     def test_pinokio_js_valid(self):
         """pinokio.js debe existir y tener estructura básica."""
@@ -478,10 +497,12 @@ class TestPinokioConfig:
         assert "icon" in content
 
     def test_pinokio_js_no_input_event_in_href(self):
-        """pinokio.js NO debe usar input.event en href."""
+        """pinokio.js NO debe usar input.event en href, debe usar session.url."""
         pinokio_path = Path(__file__).parent.parent / "pinokio.js"
         content = pinokio_path.read_text(encoding="utf-8")
         assert "input.event[0]" not in content
+        # Debe leer session.json para obtener la URL dinámica
+        assert "session" in content, "pinokio.js debe leer session.json para la URL"
 
     def test_install_json_valid(self):
         """install.json debe ser JSON válido."""

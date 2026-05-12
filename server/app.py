@@ -4102,10 +4102,10 @@ if __name__ == "__main__":
         import asyncio
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-    # En Windows, escuchar en 127.0.0.1 es necesario para que el browser
-    # de Pinokio pueda acceder al servidor correctamente.
-    # En Linux/macOS se usa 0.0.0.0 para acceso desde red local.
-    host = "127.0.0.1" if sys.platform == "win32" else "0.0.0.0"
+    # Siempre escuchar en 127.0.0.1 para que la URL emitida por uvicorn
+    # coincida exactamente con lo que Pinokio captura via el evento on/regex
+    # y luego usa en browser.open. Esto funciona en Windows, macOS y Linux.
+    host = "127.0.0.1"
     uvicorn.run(app, host=host, port=PORT, log_level="info")
 
 

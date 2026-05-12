@@ -74,20 +74,26 @@ else
     assert "start.json es JSON válido" "false"
 fi
 
-# No contiene input.event[0]
-if ! grep -q "input.event\[0\]" "$ROOT/start.json" 2>/dev/null; then
-    assert "start.json NO contiene input.event[0]" "true"
+# start.json NO usa input.event en browser.open
+if ! grep -q 'browser.open.*input.event' "$ROOT/start.json" 2>/dev/null; then
+    assert "start.json NO usa input.event en browser.open" "true"
 else
-    assert "start.json NO contiene input.event[0]" "false"
+    assert "start.json NO usa input.event en browser.open" "false"
 fi
 
-# Puerto (via template {{port}} o hardcoded)
-if grep -q '{{port}}\|42003' "$ROOT/start.json" 2>/dev/null; then
-    assert "start.json tiene puerto configurado" "true"
+# start.json pasa PORT como env var
+if grep -q '"PORT"' "$ROOT/start.json" 2>/dev/null; then
+    assert "start.json pasa PORT como env var" "true"
 else
-    assert "start.json tiene puerto configurado" "false"
+    assert "start.json pasa PORT como env var" "false"
 fi
 
+# start.json usa self.session.url para browser.open
+if grep -q 'self.session.url' "$ROOT/start.json" 2>/dev/null; then
+    assert "start.json usa self.session.url en browser.open" "true"
+else
+    assert "start.json usa self.session.url en browser.open" "false"
+fi
 # install.json válido
 if python3 -c "import json; json.loads(open('$ROOT/install.json').read())" 2>/dev/null; then
     assert "install.json es JSON válido" "true"
@@ -114,6 +120,13 @@ if ! grep -q "input.event\[0\]" "$ROOT/pinokio.js" 2>/dev/null; then
     assert "pinokio.js NO contiene input.event en href" "true"
 else
     assert "pinokio.js NO contiene input.event en href" "false"
+fi
+
+# pinokio.js usa session.json para URL
+if grep -q 'session' "$ROOT/pinokio.js" 2>/dev/null; then
+    assert "pinokio.js usa session.json para URL" "true"
+else
+    assert "pinokio.js usa session.json para URL" "false"
 fi
 
 # ============================================================

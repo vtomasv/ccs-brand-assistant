@@ -91,14 +91,20 @@ Test-Assert "start.json es JSON válido" {
     $true
 }
 
-Test-Assert "start.json NO contiene input.event[0]" {
+Test-Assert "start.json NO usa input.event en browser.open" {
     $content = Get-Content "$ROOT\start.json" -Raw
-    -not ($content -match "input\.event\[0\]")
+    # input.event[0] es correcto dentro de self.set, pero NO en browser.open
+    -not ($content -match 'browser\.open.*input\.event')
 }
 
-Test-Assert "start.json tiene puerto 42003" {
+Test-Assert "start.json pasa PORT como env var" {
     $content = Get-Content "$ROOT\start.json" -Raw
-    $content -match "42003"
+    $content -match '"PORT"'
+}
+
+Test-Assert "start.json usa self.session.url en browser.open" {
+    $content = Get-Content "$ROOT\start.json" -Raw
+    $content -match "self\.session\.url"
 }
 
 Test-Assert "install.json es JSON válido" {
@@ -119,6 +125,11 @@ Test-Assert "pinokio.js tiene título CCS Brand Assistant" {
 Test-Assert "pinokio.js NO contiene input.event en href" {
     $content = Get-Content "$ROOT\pinokio.js" -Raw
     -not ($content -match "input\.event\[0\]")
+}
+
+Test-Assert "pinokio.js usa session.json para URL" {
+    $content = Get-Content "$ROOT\pinokio.js" -Raw
+    $content -match "session"
 }
 
 # ============================================================
