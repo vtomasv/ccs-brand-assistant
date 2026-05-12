@@ -454,39 +454,45 @@ class TestPinokioConfig:
         assert isinstance(data["run"], list)
         assert len(data["run"]) > 0
 
-    def test_start_json_no_direct_input_event_in_browser(self):
-        """start.json NO debe usar input.event[0] directamente en browser.open o local variables.
+    def test_start_json_uses_local_set_pattern(self):
+        """start.json debe usar local.set + local.url (patrón oficial Pinokio v7.2.6).
         
-        Es correcto usar input.event[0] dentro de self.set para capturar la URL
-        emitida por el servidor (patrón oficial de Pinokio), pero NO debe usarse
-        directamente en browser.open ni como variable local para construir URLs."""
+        El patrón correcto es:
+        1. shell.run con on/event captura la URL del servidor
+        2. local.set guarda input.event[0] en memoria como 'url'
+        3. browser.open usa {{local.url}} para abrir la UI
+        
+        NO debe usar self.set (escribe archivo, no disponible en template)
+        NO debe usar input.event directamente en browser.open"""
         start_path = Path(__file__).parent.parent / "start.json"
         data = json.loads(start_path.read_text(encoding="utf-8"))
+        
+        has_local_set = False
         for step in data.get("run", []):
             method = step.get("method", "")
             params = step.get("params", {})
+            
+            # Verificar que usa local.set (no self.set)
+            if method == "local.set":
+                has_local_set = True
+            
             # browser.open NO debe usar input.event directamente
             if method == "browser.open":
                 uri = params.get("uri", "")
                 assert "input.event" not in uri, \
-                    f"browser.open no debe usar input.event directamente, debe usar self.session.url. URI: {uri}"
-            # No debe haber local variables con input.event (el bug original)
-            if method == "local.set":
-                for k, v in params.items():
-                    if isinstance(v, str) and "input.event" in v:
-                        # local.set con input.event es el patrón viejo que causó el bug
-                        assert False, f"local.set no debe usar input.event (causa bug en Windows): {k}={v}"
+                    f"browser.open no debe usar input.event. URI: {uri}"
+                assert "self.session" not in uri, \
+                    f"browser.open no debe usar self.session (no funciona en v7.2.6). URI: {uri}"
+                assert "local.url" in uri, \
+                    f"browser.open debe usar local.url. URI: {uri}"
+        
+        assert has_local_set, "start.json debe usar local.set para guardar la URL en memoria"
 
-    def test_start_json_has_port(self):
-        """start.json debe pasar PORT como env var y usar self.session.url para browser.open."""
+    def test_start_json_has_port_env(self):
+        """start.json debe pasar PORT como env var."""
         start_path = Path(__file__).parent.parent / "start.json"
         content = start_path.read_text(encoding="utf-8")
-        # Debe pasar PORT como variable de entorno
         assert '"PORT"' in content, "start.json debe pasar PORT como env var"
-        # Debe usar self.set para capturar la URL del servidor
-        assert "self.set" in content, "start.json debe usar self.set para capturar URL"
-        # browser.open debe usar la URL capturada, no {{port}} directamente
-        assert "self.session.url" in content, "browser.open debe usar self.session.url"
 
     def test_pinokio_js_valid(self):
         """pinokio.js debe existir y tener estructura básica."""
@@ -497,12 +503,10 @@ class TestPinokioConfig:
         assert "icon" in content
 
     def test_pinokio_js_no_input_event_in_href(self):
-        """pinokio.js NO debe usar input.event en href, debe usar session.url."""
+        """pinokio.js NO debe usar input.event en href."""
         pinokio_path = Path(__file__).parent.parent / "pinokio.js"
         content = pinokio_path.read_text(encoding="utf-8")
-        assert "input.event[0]" not in content
-        # Debe leer session.json para obtener la URL dinámica
-        assert "session" in content, "pinokio.js debe leer session.json para la URL"
+        assert "input.event[0]" not in content, "pinokio.js no debe usar input.event"
 
     def test_install_json_valid(self):
         """install.json debe ser JSON válido."""

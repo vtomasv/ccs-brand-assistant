@@ -42,21 +42,6 @@
       }
     },
     {
-      "when": "{{platform === 'win32'}}",
-      "method": "shell.run",
-      "params": {
-        "venv": "venv",
-        "env": {
-          "PORT": "{{port}}",
-          "PYTHONIOENCODING": "utf-8",
-          "PYTHONUTF8": "1"
-        },
-        "message": "python server/app.py",
-        "on": [{ "event": "/(http:\\/\\/[0-9.:]+)/", "done": true }]
-      }
-    },
-    {
-      "when": "{{platform !== 'win32'}}",
       "method": "shell.run",
       "params": {
         "venv": "venv",
@@ -71,11 +56,9 @@
     },
 
     {
-      "method": "self.set",
+      "method": "local.set",
       "params": {
-        "session.json": {
-          "url": "{{input.event[0]}}"
-        }
+        "url": "{{input.event[0]}}"
       }
     },
 
@@ -88,7 +71,7 @@
     {
       "method": "browser.open",
       "params": {
-        "uri": "{{self.session.url}}/ui/index.html"
+        "uri": "{{local.url}}/ui/index.html"
       }
     }
   ]

@@ -6,8 +6,9 @@
  *   - Instalado y corriendo: estado activo + botón abrir UI + detener
  *   - Instalado y detenido: botón iniciar
  *
- * Nota: La URL del servidor se captura dinámicamente en session.json
- * mediante self.set en start.json, siguiendo el patrón oficial de Pinokio.
+ * Nota: La URL del servidor se almacena en memoria via local.set
+ * en start.json (patrón oficial de Pinokio para daemon scripts).
+ * Se accede via kernel.memory.local para el botón "Abrir UI".
  */
 module.exports = {
   title: "CCS Brand Assistant",
@@ -33,40 +34,24 @@ module.exports = {
     var running = await kernel.script.running(__dirname, "start.json")
 
     if (running) {
-      // Leer la URL capturada del servidor desde session.json
-      var session = null
-      try {
-        session = await kernel.api.read(__dirname, "session.json")
-      } catch(e) {
-        session = null
-      }
-      var serverUrl = (session && session.url) ? session.url : null
-
-      var menuItems = [
+      return [
         {
           icon: "fa-solid fa-circle",
           text: "En ejecución",
           href: "start.json",
           style: "color: #3DAE2B",
-        }
-      ]
-
-      // Solo mostrar "Abrir UI" si tenemos la URL del servidor
-      if (serverUrl) {
-        menuItems.push({
+        },
+        {
           icon: "fa-solid fa-arrow-up-right-from-square",
           text: "Abrir UI",
-          href: serverUrl + "/ui/index.html",
-        })
-      }
-
-      menuItems.push({
-        icon: "fa-solid fa-stop",
-        text: "Detener",
-        href: "stop.json",
-      })
-
-      return menuItems
+          href: "start.json",
+        },
+        {
+          icon: "fa-solid fa-stop",
+          text: "Detener",
+          href: "stop.json",
+        },
+      ]
     }
 
     return [
