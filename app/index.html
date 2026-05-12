@@ -236,6 +236,10 @@
       background: #FFFFFF;
       border-bottom: 1px solid var(--border);
       padding: 12px 24px;
+      /* Padding extra a la derecha para no quedar tapado por los controles nativos de ventana
+         en Windows/Electron (minimizar, maximizar, cerrar). Pinokio usa un webview con
+         controles de ventana superpuestos en la esquina superior derecha. */
+      padding-right: env(titlebar-area-width, 140px);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -243,6 +247,19 @@
       top: 0;
       z-index: 50;
       box-shadow: var(--shadow-sm);
+    }
+    /* Fallback: en navegadores que no soportan env(titlebar-area-width),
+       usar media query para detectar plataformas con controles de ventana */
+    @supports not (padding: env(titlebar-area-width, 0)) {
+      .topbar {
+        padding-right: 140px;
+      }
+    }
+    /* En pantallas pequeñas (móvil), no necesitamos el padding extra */
+    @media (max-width: 768px) {
+      .topbar {
+        padding-right: 24px;
+      }
     }
     .topbar-title {
       font-size: 17px;
@@ -528,6 +545,42 @@
     .adn-field-label { font-size: 10px; color: var(--ccs-azul); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; font-weight: 700; }
     .adn-field-value { font-size: 13px; color: var(--text-main); }
     .adn-field-value.empty { color: var(--text-muted); font-style: italic; }
+    .adn-edit-btn {
+      background: none; border: none; color: var(--ccs-celeste); font-size: 11px; cursor: pointer;
+      padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity 0.15s;
+    }
+    .adn-field:hover .adn-edit-btn { opacity: 1; }
+    .adn-edit-btn:hover { background: rgba(58,109,222,0.10); }
+    .adn-edit-input {
+      width: 100%; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border-focus);
+      border-radius: 6px; background: #fff; margin-top: 4px;
+    }
+    .adn-edit-textarea {
+      width: 100%; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border-focus);
+      border-radius: 6px; background: #fff; margin-top: 4px; min-height: 60px; resize: vertical;
+    }
+    .adn-edit-actions {
+      display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end;
+    }
+    .adn-color-picker-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+    }
+    .adn-color-swatch {
+      width: 28px; height: 28px; border-radius: 6px; border: 2px solid var(--border);
+      cursor: pointer; padding: 0; overflow: hidden; position: relative;
+    }
+    .adn-color-swatch input[type=color] {
+      position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px);
+      border: none; cursor: pointer; padding: 0;
+    }
+    .adn-color-hex {
+      font-size: 12px; color: var(--text-main); font-family: monospace; min-width: 65px;
+    }
+    .adn-color-remove {
+      background: none; border: none; color: var(--danger); font-size: 14px; cursor: pointer;
+      padding: 2px 4px; border-radius: 4px;
+    }
+    .adn-color-remove:hover { background: rgba(220,38,38,0.08); }
 
     /* ===== CAMPAIGN CARDS ===== */
     .campaign-card {
@@ -1875,15 +1928,21 @@ function renderADNEmpty() {
     '</div></div></div>');
 }
 
+// Campos del ADN que son listas (arrays)
+var ADN_LIST_FIELDS = ['personality_traits', 'products_services', 'brand_promises', 'differentiators', 'content_themes', 'color_palette'];
+
 function renderADN(adn) {
   var content = document.getElementById('adnContent');
   var fields = adn.fields || {};
   var status = adn.status || 'draft';
 
+  // Guardar referencia al ADN actual para edición
+  state.currentADN = adn;
+
   var html = '<div class="card">';
   html += '<div class="card-header">';
   html += '<div><div class="card-title">ADN de ' + escapeHtml(state.activeBrand.name) + '</div>';
-  html += '<div class="card-subtitle">Versión ' + (adn.version || 'borrador') + ' &mdash; <span class="brand-status ' + getStatusClass(status) + '">' + (status === 'approved' ? 'Aprobado' : 'Borrador') + '</span></div></div>';
+  html += '<div class="card-subtitle">Versi\u00f3n ' + (adn.version || 'borrador') + ' &mdash; <span class="brand-status ' + getStatusClass(status) + '">' + (status === 'approved' ? 'Aprobado' : 'Borrador') + '</span></div></div>';
   html += '<div style="display:flex;gap:8px">';
   if (status !== 'approved') {
     html += '<button class="btn btn-success btn-sm" onclick="approveADN()">&#10003; Aprobar ADN</button>';
@@ -1896,9 +1955,9 @@ function renderADN(adn) {
     {key: 'sector', label: 'Sector'},
     {key: 'tone', label: 'Tono comunicacional'},
     {key: 'formality_level', label: 'Nivel de formalidad'},
-    {key: 'target_audience', label: 'Público objetivo'},
+    {key: 'target_audience', label: 'P\u00fablico objetivo'},
     {key: 'visual_style', label: 'Estilo visual'},
-    {key: 'typography', label: 'Tipografía'},
+    {key: 'typography', label: 'Tipograf\u00eda'},
     {key: 'personality_traits', label: 'Personalidad de marca'},
     {key: 'products_services', label: 'Productos / Servicios'},
     {key: 'brand_promises', label: 'Promesas de marca'},
@@ -1913,8 +1972,11 @@ function renderADN(adn) {
     var val = fields[f.key];
     var displayVal = safeDisplayValue(val);
 
-    html += '<div class="adn-field">';
+    html += '<div class="adn-field" id="adn-field-' + f.key + '">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between">';
     html += '<div class="adn-field-label">' + f.label + '</div>';
+    html += '<button class="adn-edit-btn" onclick="startEditADNField(\'' + f.key + '\', \'' + escapeHtml(f.label) + '\')" title="Editar">&#9998; Editar</button>';
+    html += '</div>';
 
     // Renderizado especial para paleta de colores
     if (f.key === 'color_palette' && Array.isArray(val) && val.length > 0) {
@@ -1939,12 +2001,162 @@ function renderADN(adn) {
   html += '</div>';
 
   if (fields.raw_analysis) {
-    html += '<div style="margin-top:16px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Análisis completo del agente</div>';
+    html += '<div style="margin-top:16px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">An\u00e1lisis completo del agente</div>';
     html += '<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);max-height:200px;overflow-y:auto;white-space:pre-wrap">' + escapeHtml(fields.raw_analysis) + '</div></div>';
   }
 
   html += '</div>';
   content.innerHTML = html;
+}
+
+function startEditADNField(fieldKey, fieldLabel) {
+  var fieldEl = document.getElementById('adn-field-' + fieldKey);
+  if (!fieldEl || !state.currentADN) return;
+
+  var fields = state.currentADN.fields || {};
+  var val = fields[fieldKey];
+  var isListField = ADN_LIST_FIELDS.indexOf(fieldKey) !== -1;
+  var isColorPalette = (fieldKey === 'color_palette');
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between">';
+  html += '<div class="adn-field-label">' + escapeHtml(fieldLabel) + '</div>';
+  html += '</div>';
+
+  if (isColorPalette) {
+    // Editor especial de paleta de colores con color pickers nativos
+    var colors = Array.isArray(val) ? val : [];
+    html += '<div id="adnColorEditor">';
+    for (var ci = 0; ci < colors.length; ci++) {
+      var c = String(colors[ci]).trim();
+      if (c.charAt(0) !== '#') c = '#000000';
+      html += '<div class="adn-color-picker-row" data-color-idx="' + ci + '">';
+      html += '<div class="adn-color-swatch" style="background:' + escapeHtml(c) + '">';
+      html += '<input type="color" value="' + escapeHtml(c) + '" onchange="_onAdnColorChange(this,' + ci + ')" />';
+      html += '</div>';
+      html += '<span class="adn-color-hex" id="adnColorHex' + ci + '">' + escapeHtml(c) + '</span>';
+      html += '<button class="adn-color-remove" onclick="_removeAdnColor(' + ci + ')" title="Eliminar">&#10005;</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<button class="btn btn-sm btn-secondary" onclick="_addAdnColor()" style="margin-top:6px">+ Agregar color</button>';
+    html += '<div class="adn-edit-actions">';
+    html += '<button class="btn btn-sm btn-secondary" onclick="cancelEditADNField(\'' + fieldKey + '\')">Cancelar</button>';
+    html += '<button class="btn btn-sm btn-primary" onclick="saveEditADNColorPalette()">Guardar</button>';
+    html += '</div>';
+  } else if (isListField) {
+    // Editor de lista: textarea con un item por línea
+    var listVal = Array.isArray(val) ? val.join('\n') : (val || '');
+    html += '<textarea class="adn-edit-textarea" id="adnEditValue" placeholder="Un item por l\u00ednea">' + escapeHtml(listVal) + '</textarea>';
+    html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Un elemento por l\u00ednea</div>';
+    html += '<div class="adn-edit-actions">';
+    html += '<button class="btn btn-sm btn-secondary" onclick="cancelEditADNField(\'' + fieldKey + '\')">Cancelar</button>';
+    html += '<button class="btn btn-sm btn-primary" onclick="saveEditADNField(\'' + fieldKey + '\', true)">Guardar</button>';
+    html += '</div>';
+  } else {
+    // Editor de texto simple
+    var strVal = val || '';
+    if (typeof strVal !== 'string') strVal = String(strVal);
+    html += '<input type="text" class="adn-edit-input" id="adnEditValue" value="' + escapeHtml(strVal) + '" />';
+    html += '<div class="adn-edit-actions">';
+    html += '<button class="btn btn-sm btn-secondary" onclick="cancelEditADNField(\'' + fieldKey + '\')">Cancelar</button>';
+    html += '<button class="btn btn-sm btn-primary" onclick="saveEditADNField(\'' + fieldKey + '\', false)">Guardar</button>';
+    html += '</div>';
+  }
+
+  fieldEl.innerHTML = html;
+}
+
+function cancelEditADNField(fieldKey) {
+  // Re-renderizar el ADN completo para restaurar la vista
+  if (state.currentADN) renderADN(state.currentADN);
+}
+
+function saveEditADNField(fieldKey, isList) {
+  var input = document.getElementById('adnEditValue');
+  if (!input || !state.activeBrand) return;
+
+  var newValue;
+  if (isList) {
+    newValue = input.value.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+  } else {
+    newValue = input.value.trim();
+  }
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/adn/field'), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({field: fieldKey, value: newValue, reason: 'Edici\u00f3n manual desde UI'}),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(adn) {
+      state.currentADN = adn;
+      renderADN(adn);
+      showNotification('Campo actualizado correctamente', 'success');
+    })
+    .catch(function(e) {
+      showNotification('Error al guardar: ' + e.message, 'error');
+    });
+}
+
+function _onAdnColorChange(input, idx) {
+  var newColor = input.value;
+  var swatch = input.parentElement;
+  swatch.style.background = newColor;
+  var hexEl = document.getElementById('adnColorHex' + idx);
+  if (hexEl) hexEl.textContent = newColor;
+}
+
+function _removeAdnColor(idx) {
+  var editor = document.getElementById('adnColorEditor');
+  if (!editor) return;
+  var rows = editor.querySelectorAll('.adn-color-picker-row');
+  if (rows[idx]) rows[idx].remove();
+  // Re-index
+  var remaining = editor.querySelectorAll('.adn-color-picker-row');
+  for (var i = 0; i < remaining.length; i++) {
+    remaining[i].setAttribute('data-color-idx', i);
+  }
+}
+
+function _addAdnColor() {
+  var editor = document.getElementById('adnColorEditor');
+  if (!editor) return;
+  var idx = editor.querySelectorAll('.adn-color-picker-row').length;
+  var div = document.createElement('div');
+  div.className = 'adn-color-picker-row';
+  div.setAttribute('data-color-idx', idx);
+  div.innerHTML = '<div class="adn-color-swatch" style="background:#000000">' +
+    '<input type="color" value="#000000" onchange="_onAdnColorChange(this,' + idx + ')" />' +
+    '</div>' +
+    '<span class="adn-color-hex" id="adnColorHex' + idx + '">#000000</span>' +
+    '<button class="adn-color-remove" onclick="_removeAdnColor(' + idx + ')" title="Eliminar">&#10005;</button>';
+  editor.appendChild(div);
+}
+
+function saveEditADNColorPalette() {
+  var editor = document.getElementById('adnColorEditor');
+  if (!editor || !state.activeBrand) return;
+  var rows = editor.querySelectorAll('.adn-color-picker-row');
+  var colors = [];
+  for (var i = 0; i < rows.length; i++) {
+    var input = rows[i].querySelector('input[type=color]');
+    if (input) colors.push(input.value);
+  }
+
+  fetch(apiUrl('/brands/' + state.activeBrand.id + '/adn/field'), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({field: 'color_palette', value: colors, reason: 'Edici\u00f3n manual de paleta de colores'}),
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(adn) {
+      state.currentADN = adn;
+      renderADN(adn);
+      showNotification('Paleta de colores actualizada', 'success');
+    })
+    .catch(function(e) {
+      showNotification('Error al guardar paleta: ' + e.message, 'error');
+    });
 }
 
 function approveADN() {
@@ -2438,16 +2650,23 @@ function loadCalendar() {
       calState.allPubs = pubs;
       calState.channelFilter = '';
       calState.selectedDate = null;
-      // Iniciar en el mes de la primera publicación o mes actual
+      // Iniciar en el mes correcto:
+      // - Si la primera publicación aún no ha pasado, ir a su mes
+      // - Si la primera publicación ya pasó, ir al mes actual
       var now = new Date();
+      var targetDate = now;
       if (pubs.length > 0 && pubs[0].scheduled_at) {
         var firstDate = new Date(pubs[0].scheduled_at.split(' ')[0]);
-        calState.year = firstDate.getFullYear();
-        calState.month = firstDate.getMonth();
-      } else {
-        calState.year = now.getFullYear();
-        calState.month = now.getMonth();
+        // Usar la primera publicación si su mes es >= mes actual, o si es futura
+        if (firstDate >= now || (firstDate.getFullYear() === now.getFullYear() && firstDate.getMonth() >= now.getMonth())) {
+          targetDate = firstDate;
+        } else {
+          // La campaña ya empezó, ir al mes actual
+          targetDate = now;
+        }
       }
+      calState.year = targetDate.getFullYear();
+      calState.month = targetDate.getMonth();
       renderCalendar();
     })
     .catch(function(e) {
