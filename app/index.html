@@ -526,7 +526,21 @@
       border-top: 1px solid var(--border);
       background: #FFFFFF;
     }
-    .chat-input { flex: 1; resize: none; min-height: 40px; max-height: 120px; }
+    .chat-input {
+      flex: 1;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+      font-size: 13px;
+      padding: 10px 12px;
+      line-height: 1.4;
+    }
+    .chat-input::placeholder {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: normal;
+      overflow: visible;
+    }
 
     /* ===== ADN VIEWER ===== */
     .adn-grid {
@@ -1684,18 +1698,30 @@ function checkOllamaStatus() {
       if (data.available) {
         dot.classList.add('online');
         text.textContent = 'Ollama activo';
-        var modelsHtml = '<div style="margin-bottom:8px;font-size:12px;color:var(--success)">&#10003; Ollama está corriendo</div>';
-        if (data.models && data.models.length > 0) {
-          modelsHtml += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Modelos disponibles:</div>';
-          modelsHtml += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
-          for (var i = 0; i < data.models.length; i++) {
-            modelsHtml += '<span style="background:rgba(13,61,166,0.10);color:var(--ccs-azul-oscuro);font-size:11px;padding:3px 8px;border-radius:20px">' + data.models[i] + '</span>';
+        
+        // Si ya tenemos datos de performance cargados, no sobreescribir el panel
+        // Solo cargar performance si aún no se ha hecho
+        if (state._hardwarePerfLoaded) {
+          // Ya hay datos de performance, no sobreescribir
+          // Solo actualizar si el panel está vacío
+          if (sysContent && !sysContent.innerHTML.trim()) {
+            updateModelBadgesInDashboard(state._hardwarePerf);
           }
-          modelsHtml += '</div>';
         } else {
-          modelsHtml += '<div style="font-size:12px;color:var(--warning)">&#9888; No hay modelos instalados. Ejecuta: ollama pull llama3.2:3b</div>';
+          // Primera carga: mostrar info básica mientras se carga performance
+          var modelsHtml = '<div style="margin-bottom:8px;font-size:12px;color:var(--success)">&#10003; Ollama est\u00e1 corriendo</div>';
+          if (data.models && data.models.length > 0) {
+            modelsHtml += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Modelos disponibles:</div>';
+            modelsHtml += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+            for (var i = 0; i < data.models.length; i++) {
+              modelsHtml += '<span style="background:rgba(13,61,166,0.10);color:var(--ccs-azul-oscuro);font-size:11px;padding:3px 8px;border-radius:20px">' + data.models[i] + '</span>';
+            }
+            modelsHtml += '</div>';
+          } else {
+            modelsHtml += '<div style="font-size:12px;color:var(--warning)">&#9888; No hay modelos instalados. Ejecuta: ollama pull llama3.2:3b</div>';
+          }
+          sysContent.innerHTML = modelsHtml;
         }
-        sysContent.innerHTML = modelsHtml;
       } else {
         dot.classList.remove('online');
         text.textContent = 'Ollama no disponible';
@@ -2201,7 +2227,7 @@ function loadInterview() {
     '<div class="chat-message system-msg">Sesión iniciada. El agente está listo para comenzar la entrevista.</div>' +
     '</div>' +
     '<div class="chat-input-area">' +
-    '<textarea class="chat-input" id="chatInput" placeholder="Escribe tu respuesta... (escribe \"fin\" para terminar)" onkeydown="handleChatKey(event)"></textarea>' +
+    '<textarea class="chat-input" id="chatInput" placeholder="Escribe tu respuesta y presiona Enter para enviar..." onkeydown="handleChatKey(event)"></textarea>' +
     '<button class="btn btn-primary" onclick="sendInterviewMessage()" id="btnSendChat">Enviar</button>' +
     '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
@@ -4586,15 +4612,54 @@ function startAnalyzeProgressPolling(brandId) {
 // ============================================================
 // MODEL PERFORMANCE SEMAPHORE
 // ============================================================
-function loadModelPerformance() {
-  fetch(apiUrl('/hardware/performance'))
+function loadModelPerformance(forceRefresh) {
+  var url = apiUrl('/hardware/performance');
+  if (forceRefresh) url += '?force=true';
+  
+  // Si ya tenemos datos en memoria y no es un refresh forzado, usarlos directamente
+  if (!forceRefresh && state._hardwarePerf && state._hardwarePerf.models) {
+    updateModelBadgesInDashboard(state._hardwarePerf);
+    return;
+  }
+  
+  fetch(url)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       state._hardwarePerf = data;
+      state._hardwarePerfLoaded = true;
       // Actualizar los badges de modelos en el dashboard
       updateModelBadgesInDashboard(data);
     })
     .catch(function() {});
+}
+
+function refreshModelPerformance() {
+  // Botón de refrescar: forzar recalculo
+  var btn = document.getElementById('btnRefreshPerf');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner" style="width:12px;height:12px"></span> Analizando...';
+  }
+  var url = apiUrl('/hardware/performance') + '?force=true';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      state._hardwarePerf = data;
+      state._hardwarePerfLoaded = true;
+      updateModelBadgesInDashboard(data);
+      showNotification('Análisis de hardware actualizado', 'success');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '&#x21bb; Recalcular';
+      }
+    })
+    .catch(function(e) {
+      showNotification('Error al recalcular: ' + e.message, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '&#x21bb; Recalcular';
+      }
+    });
 }
 
 function getModelPerfBadgeHtml(modelName) {
@@ -4625,7 +4690,10 @@ function updateModelBadgesInDashboard(perfData) {
       var hw = perfData.hardware || {};
       var modelsPerf = perfData.models || [];
 
-      var html = '<div style="margin-bottom:8px;font-size:12px;color:var(--success)">&#10003; Ollama est\u00e1 corriendo</div>';
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+      html += '<span style="font-size:12px;color:var(--success)">&#10003; Ollama est\u00e1 corriendo</span>';
+      html += '<button id="btnRefreshPerf" class="btn btn-sm btn-secondary" onclick="refreshModelPerformance()" style="font-size:10px;padding:2px 10px" title="Recalcular an\u00e1lisis de hardware y modelos">&#x21bb; Recalcular</button>';
+      html += '</div>';
 
       // Hardware info
       html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;padding:8px;background:var(--bg-base);border-radius:6px">';
@@ -4712,8 +4780,8 @@ function init() {
   // Verificar estado de Ollama cada 30 segundos
   setInterval(checkOllamaStatus, 30000);
 
-  // Actualizar performance cada 60 segundos
-  setInterval(loadModelPerformance, 60000);
+  // Performance de modelos: ya no se recalcula automáticamente cada 60s
+  // Se usa cache del backend + botón manual de "Recalcular"
 
   // Cargar marcas en background para el badge
   fetch(apiUrl('/brands'))

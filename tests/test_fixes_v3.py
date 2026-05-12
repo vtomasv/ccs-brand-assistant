@@ -758,3 +758,129 @@ class TestImageAspectRatios:
         idx = content.find("function generateExternalPrompt")
         func_code = content[idx:idx+2000]
         assert "channel: pubChannel" in func_code
+
+
+# ============================================================
+# TEST 9: CACHE DE HARDWARE/PERFORMANCE
+# ============================================================
+
+class TestHardwarePerformanceCache:
+    """Tests para la persistencia del cache de hardware/performance."""
+
+    def test_hardware_endpoint_creates_cache(self, brand_with_campaign):
+        """El endpoint debe crear un archivo de cache al calcular."""
+        ctx = brand_with_campaign
+        client = ctx["client"]
+        data_dir = ctx["data_dir"]
+
+        # Forzar cálculo
+        response = client.get("/api/hardware/performance?force=true")
+        assert response.status_code == 200
+        data = response.json()
+        assert "hardware" in data
+        assert "models" in data
+
+        # Verificar que se creó el archivo de cache
+        cache_file = data_dir / "hardware_perf_cache.json"
+        assert cache_file.exists()
+
+    def test_hardware_endpoint_returns_cache(self, brand_with_campaign):
+        """El endpoint debe retornar cache si existe y no se fuerza."""
+        ctx = brand_with_campaign
+        data_dir = ctx["data_dir"]
+        client = ctx["client"]
+
+        # Crear cache manual
+        cache_data = {
+            "hardware": {"ram_gb": 16, "cpu_count": 8, "gpu_name": "Test GPU", "vram_gb": 4},
+            "models": [{"model": "test:3b", "grade": "A", "estimated_tps": 50}],
+        }
+        with open(data_dir / "hardware_perf_cache.json", "w") as f:
+            json.dump(cache_data, f)
+
+        # Sin force, debe retornar el cache
+        response = client.get("/api/hardware/performance")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hardware"]["ram_gb"] == 16
+        assert data["models"][0]["model"] == "test:3b"
+
+    def test_hardware_endpoint_force_ignores_cache(self, brand_with_campaign):
+        """Con force=true, debe recalcular ignorando el cache."""
+        ctx = brand_with_campaign
+        data_dir = ctx["data_dir"]
+        client = ctx["client"]
+
+        # Crear cache con datos falsos
+        cache_data = {
+            "hardware": {"ram_gb": 999, "cpu_count": 1},
+            "models": [],
+        }
+        with open(data_dir / "hardware_perf_cache.json", "w") as f:
+            json.dump(cache_data, f)
+
+        # Con force, debe recalcular (RAM real no será 999)
+        response = client.get("/api/hardware/performance?force=true")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hardware"]["ram_gb"] != 999
+
+    def test_hardware_endpoint_accepts_force_param(self):
+        """El endpoint debe aceptar el parámetro force."""
+        import app as app_module
+        import inspect
+        sig = inspect.signature(app_module.get_hardware_performance)
+        assert "force" in sig.parameters
+
+
+# ============================================================
+# TEST 10: MEJORAS DEL ENTREVISTADOR
+# ============================================================
+
+class TestInterviewerImprovements:
+    """Tests para las mejoras del placeholder del entrevistador."""
+
+    def test_placeholder_has_enter_hint(self):
+        """El placeholder debe indicar que Enter envía el mensaje."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        assert "Enter para enviar" in content
+
+    def test_placeholder_is_short_enough(self):
+        """El placeholder no debe ser demasiado largo."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        # Buscar el placeholder del chatInput
+        import re
+        match = re.search(r'id="chatInput"\s+placeholder="([^"]*)"', content)
+        assert match is not None
+        placeholder = match.group(1)
+        # No debe exceder 60 caracteres para no cortarse
+        assert len(placeholder) <= 60, f"Placeholder too long: {len(placeholder)} chars: {placeholder}"
+
+    def test_handle_chat_key_exists(self):
+        """La función handleChatKey debe existir para manejar Enter."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        assert "function handleChatKey" in content
+        # Debe prevenir default en Enter
+        assert "event.preventDefault()" in content
+
+    def test_chat_input_has_proper_styling(self):
+        """El chat-input debe tener estilos para que el placeholder sea visible."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        assert ".chat-input::placeholder" in content
+
+    def test_refresh_button_in_dashboard(self):
+        """El dashboard debe tener un botón de Recalcular para hardware."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        assert "btnRefreshPerf" in content
+        assert "refreshModelPerformance" in content
+
+    def test_no_auto_refresh_interval(self):
+        """No debe haber setInterval para loadModelPerformance."""
+        html_path = Path(__file__).parent.parent / "app" / "index.html"
+        content = html_path.read_text(encoding="utf-8")
+        assert "setInterval(loadModelPerformance" not in content

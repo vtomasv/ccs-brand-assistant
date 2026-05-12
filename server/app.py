@@ -1028,9 +1028,23 @@ def check_readiness():
 
 
 @app.get("/api/hardware/performance")
-def get_hardware_performance():
+def get_hardware_performance(force: bool = False):
     """Detecta hardware del sistema y estima rendimiento de modelos instalados.
-    Inspirado en canirun.ai: muestra semáforo de rendimiento por modelo."""
+    Inspirado en canirun.ai: muestra semáforo de rendimiento por modelo.
+    
+    Si force=False y existe cache válido, retorna el cache.
+    Si force=True, recalcula y actualiza el cache.
+    """
+    cache_file = DATA_DIR / "hardware_perf_cache.json"
+    
+    # Intentar retornar cache si no se fuerza recalculo
+    if not force and cache_file.exists():
+        try:
+            cached = load_json(cache_file, {})
+            if cached and "hardware" in cached and "models" in cached:
+                return cached
+        except Exception:
+            pass  # Cache corrupto, recalcular
     import platform as plat
     import subprocess
 
@@ -1132,7 +1146,15 @@ def get_hardware_performance():
     except Exception as e:
         logger.debug(f"No se pudieron obtener modelos para performance: {e}")
 
-    return {"hardware": hw, "models": models_perf}
+    result = {"hardware": hw, "models": models_perf}
+    
+    # Guardar en cache para evitar recalcular en cada navegación
+    try:
+        save_json(cache_file, result)
+    except Exception as e:
+        logger.debug(f"No se pudo guardar cache de hardware: {e}")
+    
+    return result
 
 
 def _estimate_model_params(model_name: str) -> float:
