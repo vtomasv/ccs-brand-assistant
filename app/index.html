@@ -1017,6 +1017,9 @@
       <div class="nav-item" onclick="navigateTo('audit')" id="nav-audit">
         <span class="nav-icon">&#9670;</span> Auditoría
       </div>
+      <div class="nav-item" onclick="navigateTo('exportimport')" id="nav-exportimport">
+        <span class="nav-icon">&#8645;</span> Exportar / Importar
+      </div>
     </div>
 
     <div class="sidebar-brand-selector">
@@ -1212,6 +1215,53 @@
         <div class="empty-state">
           <div class="loading-spinner"></div>
           <div class="loading-text">Cargando auditoría...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: EXPORTAR / IMPORTAR ===== -->
+    <div class="page" id="page-exportimport">
+      <div id="exportImportContent">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Exportar / Importar Datos</div>
+              <div class="card-subtitle">Migra tus datos entre máquinas de forma segura con verificación de integridad SHA-256</div>
+            </div>
+          </div>
+
+          <!-- Sección Exportar -->
+          <div style="padding:20px;border-bottom:1px solid var(--border)">
+            <h3 style="margin:0 0 8px;font-size:16px;color:var(--text-primary)">&#8593; Exportar datos</h3>
+            <p style="margin:0 0 16px;font-size:13px;color:var(--text-muted)">Descarga un archivo con todas tus marcas, ADN, campañas, agentes y configuración. El archivo incluye un hash SHA-256 que impide su modificación.</p>
+            <div id="exportInfo" style="margin-bottom:16px;padding:12px;background:var(--bg-base);border-radius:8px;border:1px solid var(--border);font-size:13px">
+              <div class="loading-spinner" style="margin:0 auto"></div>
+            </div>
+            <button class="btn btn-primary" onclick="exportData()" id="btnExport">
+              &#8595; Descargar archivo de exportación
+            </button>
+          </div>
+
+          <!-- Sección Importar -->
+          <div style="padding:20px">
+            <h3 style="margin:0 0 8px;font-size:16px;color:var(--text-primary)">&#8595; Importar datos</h3>
+            <p style="margin:0 0 16px;font-size:13px;color:var(--text-muted)">Sube un archivo de exportación generado en otra máquina. Se verificará la integridad del archivo antes de importar. Los datos existentes no se sobreescriben.</p>
+
+            <div style="margin-bottom:16px">
+              <div id="importDropZone" style="border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s" onclick="document.getElementById('importFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='var(--primary-light)'" ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent'" ondrop="handleImportDrop(event)">
+                <div style="font-size:32px;margin-bottom:8px">&#128230;</div>
+                <div style="font-size:14px;font-weight:500;color:var(--text-primary)">Arrastra el archivo aquí o haz click para seleccionar</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Solo archivos .json generados por la exportación</div>
+              </div>
+              <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(this)" />
+            </div>
+
+            <div id="importStatus" style="display:none;margin-bottom:16px;padding:12px;border-radius:8px;font-size:13px"></div>
+
+            <button class="btn btn-accent" onclick="executeImport()" id="btnImport" disabled style="display:none">
+              &#8593; Importar datos verificados
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1542,6 +1592,7 @@ function navigateTo(page) {
     calendar: 'Calendario',
     agents: 'Configuración de Agentes',
     audit: 'Auditoría',
+    exportimport: 'Exportar / Importar',
   };
   document.getElementById('pageTitle').textContent = titles[page] || page;
 
@@ -1574,6 +1625,7 @@ function loadPageContent(page) {
   else if (page === 'calendar') loadCalendar();
   else if (page === 'agents') loadAgents();
   else if (page === 'audit') loadAudit();
+  else if (page === 'exportimport') loadExportImport();
 }
 
 // ============================================================
@@ -4627,6 +4679,243 @@ function renderAudit(entries) {
   }
   html += '</tbody></table></div></div>';
   content.innerHTML = html;
+}
+
+// ============================================================
+// EXPORTAR / IMPORTAR
+// ============================================================
+var _importFileData = null;
+
+function loadExportImport() {
+  // Cargar info de lo que se exportaría
+  fetch(apiUrl('/export/info'))
+    .then(function(r) { return r.json(); })
+    .then(function(info) {
+      var el = document.getElementById('exportInfo');
+      if (!el) return;
+      var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px">';
+      html += '<div><div style="font-size:20px;font-weight:600;color:var(--primary)">' + info.brands + '</div><div style="font-size:11px;color:var(--text-muted)">Marcas</div></div>';
+      html += '<div><div style="font-size:20px;font-weight:600;color:var(--primary)">' + info.campaigns + '</div><div style="font-size:11px;color:var(--text-muted)">Campa\u00f1as</div></div>';
+      html += '<div><div style="font-size:20px;font-weight:600;color:var(--primary)">' + info.prompts + '</div><div style="font-size:11px;color:var(--text-muted)">Prompts</div></div>';
+      html += '<div><div style="font-size:20px;font-weight:600;color:var(--primary)">' + info.skills + '</div><div style="font-size:11px;color:var(--text-muted)">Skills</div></div>';
+      html += '</div>';
+      el.innerHTML = html;
+    })
+    .catch(function() {
+      var el = document.getElementById('exportInfo');
+      if (el) el.innerHTML = '<span style="color:var(--text-muted)">No se pudo cargar la informaci\u00f3n</span>';
+    });
+
+  // Resetear estado de importación
+  _importFileData = null;
+  var statusEl = document.getElementById('importStatus');
+  if (statusEl) { statusEl.style.display = 'none'; statusEl.innerHTML = ''; }
+  var btnImport = document.getElementById('btnImport');
+  if (btnImport) { btnImport.disabled = true; btnImport.style.display = 'none'; }
+  var fileInput = document.getElementById('importFileInput');
+  if (fileInput) fileInput.value = '';
+}
+
+function exportData() {
+  var btn = document.getElementById('btnExport');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando exportaci\u00f3n...'; }
+
+  // Descargar directamente usando un enlace
+  fetch(apiUrl('/export'))
+    .then(function(r) {
+      if (!r.ok) throw new Error('Error al exportar');
+      var disposition = r.headers.get('content-disposition') || '';
+      var filename = 'ccs_brand_export.json';
+      var match = disposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+      return r.blob().then(function(blob) { return {blob: blob, filename: filename}; });
+    })
+    .then(function(result) {
+      // Crear enlace de descarga
+      var url = URL.createObjectURL(result.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showNotification('Exportaci\u00f3n descargada exitosamente', 'success');
+    })
+    .catch(function(e) {
+      showNotification('Error al exportar: ' + e.message, 'error');
+    })
+    .finally(function() {
+      if (btn) { btn.disabled = false; btn.innerHTML = '&#8595; Descargar archivo de exportaci\u00f3n'; }
+    });
+}
+
+function handleImportDrop(event) {
+  event.preventDefault();
+  var dropZone = document.getElementById('importDropZone');
+  if (dropZone) { dropZone.style.borderColor = 'var(--border)'; dropZone.style.background = 'transparent'; }
+
+  var files = event.dataTransfer.files;
+  if (files.length > 0) {
+    _processImportFile(files[0]);
+  }
+}
+
+function handleImportFile(input) {
+  if (input.files.length > 0) {
+    _processImportFile(input.files[0]);
+  }
+}
+
+function _processImportFile(file) {
+  var statusEl = document.getElementById('importStatus');
+  var btnImport = document.getElementById('btnImport');
+
+  // Validar extensión
+  if (!file.name.endsWith('.json')) {
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#fef2f2';
+    statusEl.style.color = '#dc2626';
+    statusEl.style.border = '1px solid #fecaca';
+    statusEl.innerHTML = '&#10060; El archivo debe ser un .json generado por la exportaci\u00f3n.';
+    btnImport.disabled = true;
+    btnImport.style.display = 'none';
+    return;
+  }
+
+  // Leer y validar contenido
+  statusEl.style.display = 'block';
+  statusEl.style.background = 'var(--bg-base)';
+  statusEl.style.color = 'var(--text-primary)';
+  statusEl.style.border = '1px solid var(--border)';
+  statusEl.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:middle"></div> Verificando archivo...';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var content = JSON.parse(e.target.result);
+
+      // Validar estructura
+      if (!content.integrity_hash || !content.data) {
+        statusEl.style.background = '#fef2f2';
+        statusEl.style.color = '#dc2626';
+        statusEl.style.border = '1px solid #fecaca';
+        statusEl.innerHTML = '&#10060; Archivo inv\u00e1lido. No tiene la estructura de exportaci\u00f3n esperada.';
+        btnImport.disabled = true;
+        btnImport.style.display = 'none';
+        return;
+      }
+
+      // Validar versión
+      if (content.data.export_version !== '1.0') {
+        statusEl.style.background = '#fef2f2';
+        statusEl.style.color = '#dc2626';
+        statusEl.style.border = '1px solid #fecaca';
+        statusEl.innerHTML = '&#10060; Versi\u00f3n de exportaci\u00f3n no soportada: ' + escapeHtml(content.data.export_version || 'desconocida');
+        btnImport.disabled = true;
+        btnImport.style.display = 'none';
+        return;
+      }
+
+      // Mostrar resumen del archivo
+      var data = content.data;
+      var brandCount = (data.brands || []).length;
+      var promptCount = Object.keys(data.prompts || {}).length;
+      var skillCount = Object.keys(data.skills || {}).length;
+      var campaignCount = 0;
+      for (var i = 0; i < (data.brands || []).length; i++) {
+        campaignCount += Object.keys((data.brands[i].campaigns || {})).length;
+      }
+
+      statusEl.style.background = '#f0fdf4';
+      statusEl.style.color = '#166534';
+      statusEl.style.border = '1px solid #bbf7d0';
+      statusEl.innerHTML = '&#9989; <strong>Archivo v\u00e1lido</strong> &mdash; Exportado el ' + escapeHtml(data.exported_at || 'fecha desconocida') + '<br>' +
+        '<div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;font-size:12px">' +
+        '<div><strong>' + brandCount + '</strong> marcas</div>' +
+        '<div><strong>' + campaignCount + '</strong> campa\u00f1as</div>' +
+        '<div><strong>' + promptCount + '</strong> prompts</div>' +
+        '<div><strong>' + skillCount + '</strong> skills</div>' +
+        '</div>' +
+        '<div style="margin-top:8px;font-size:11px;color:#166534">&#128274; Hash SHA-256: ' + escapeHtml(content.integrity_hash.substring(0, 16)) + '...</div>' +
+        '<div style="margin-top:4px;font-size:11px;color:#166534">La integridad se verificar\u00e1 en el servidor al importar.</div>';
+
+      _importFileData = file;
+      btnImport.disabled = false;
+      btnImport.style.display = 'inline-flex';
+
+    } catch (parseErr) {
+      statusEl.style.background = '#fef2f2';
+      statusEl.style.color = '#dc2626';
+      statusEl.style.border = '1px solid #fecaca';
+      statusEl.innerHTML = '&#10060; Error al leer el archivo: ' + escapeHtml(parseErr.message);
+      btnImport.disabled = true;
+      btnImport.style.display = 'none';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function executeImport() {
+  if (!_importFileData) {
+    showNotification('No hay archivo seleccionado', 'error');
+    return;
+  }
+
+  if (!confirm('\u00bfEst\u00e1s seguro de importar estos datos?\n\nSe verificar\u00e1 la integridad del archivo. Los datos existentes NO se sobreescribir\u00e1n.')) {
+    return;
+  }
+
+  var btn = document.getElementById('btnImport');
+  var statusEl = document.getElementById('importStatus');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+
+  var formData = new FormData();
+  formData.append('file', _importFileData);
+
+  fetch(apiUrl('/import'), {
+    method: 'POST',
+    body: formData,
+  })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(err) { throw new Error(err.detail || 'Error desconocido'); });
+      return r.json();
+    })
+    .then(function(result) {
+      var stats = result.stats || {};
+      statusEl.style.background = '#f0fdf4';
+      statusEl.style.color = '#166534';
+      statusEl.style.border = '1px solid #bbf7d0';
+      statusEl.innerHTML = '&#9989; <strong>Importaci\u00f3n exitosa</strong><br>' +
+        '<div style="margin-top:8px;font-size:12px">' +
+        '&#8226; ' + (stats.brands || 0) + ' marcas importadas<br>' +
+        '&#8226; ' + (stats.campaigns || 0) + ' campa\u00f1as importadas<br>' +
+        '&#8226; ' + (stats.prompts || 0) + ' prompts importados<br>' +
+        '&#8226; ' + (stats.skills || 0) + ' skills importados<br>' +
+        (stats.skipped_existing > 0 ? '&#8226; ' + stats.skipped_existing + ' elementos omitidos (ya exist\u00edan)<br>' : '') +
+        '</div>' +
+        '<div style="margin-top:8px;font-size:11px;color:#166534">&#128274; Integridad verificada correctamente.</div>';
+
+      showNotification('Importaci\u00f3n completada exitosamente', 'success');
+
+      // Recargar datos
+      loadDashboardStats();
+      _importFileData = null;
+      btn.style.display = 'none';
+    })
+    .catch(function(e) {
+      statusEl.style.background = '#fef2f2';
+      statusEl.style.color = '#dc2626';
+      statusEl.style.border = '1px solid #fecaca';
+      statusEl.innerHTML = '&#10060; <strong>Error en importaci\u00f3n</strong><br>' +
+        '<div style="margin-top:4px;font-size:12px">' + escapeHtml(e.message) + '</div>';
+      showNotification('Error al importar: ' + e.message, 'error');
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = '&#8593; Importar datos verificados';
+    });
 }
 
 function _formatNumber(n) {

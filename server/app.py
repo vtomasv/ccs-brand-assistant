@@ -4673,6 +4673,346 @@ El prompt debe ser apropiado para una publicación de redes sociales de una empr
         logger.error(f"Error generando prompt externo: {e}")
         raise HTTPException(status_code=500, detail=f"Error al generar el prompt externo: {str(e)}")
 
+# ---------------------------------------------------------------------------
+# MÓDULO: Exportar / Importar datos con verificación de integridad
+# ---------------------------------------------------------------------------
+import hashlib
+import base64
+import zipfile
+import tempfile
+from io import BytesIO
+
+
+def _compute_data_hash(data_bytes: bytes) -> str:
+    """Calcula SHA-256 del contenido para verificación de integridad."""
+    return hashlib.sha256(data_bytes).hexdigest()
+
+
+def _collect_export_data() -> dict:
+    """Recolecta todos los datos del sistema para exportar."""
+    export_data = {
+        "export_version": "1.0",
+        "exported_at": datetime.utcnow().isoformat(),
+        "plugin_name": "ccs-brand-assistant",
+        "config": None,
+        "agents": None,
+        "brands": [],
+        "prompts": {},
+        "skills": {},
+    }
+
+    # Config
+    config_file = DATA_DIR / "config.json"
+    if config_file.exists():
+        export_data["config"] = load_json(config_file)
+
+    # Agentes
+    agents_file = DATA_DIR / "agents" / "agents.json"
+    if agents_file.exists():
+        export_data["agents"] = load_json(agents_file)
+
+    # Prompts del sistema
+    prompts_dir = DATA_DIR / "prompts" / "system"
+    if prompts_dir.exists():
+        for f in prompts_dir.glob("*.md"):
+            export_data["prompts"][f.stem] = f.read_text(encoding="utf-8")
+
+    # Skills
+    skills_dir = DATA_DIR / "prompts" / "skills"
+    if skills_dir.exists():
+        for f in skills_dir.glob("*.md"):
+            export_data["skills"][f.stem] = f.read_text(encoding="utf-8")
+
+    # Marcas con todo su contenido (ADN, sesiones, etc.)
+    brands_dir = DATA_DIR / "brands"
+    if brands_dir.exists():
+        for brand_dir in brands_dir.iterdir():
+            if brand_dir.is_dir():
+                brand_data = {"id": brand_dir.name, "files": {}}
+                for json_file in brand_dir.glob("*.json"):
+                    brand_data["files"][json_file.name] = load_json(json_file)
+                # Sesiones de entrevista
+                sessions_dir = brand_dir / "sessions"
+                if sessions_dir.exists():
+                    brand_data["sessions"] = {}
+                    for s_file in sessions_dir.glob("*.json"):
+                        brand_data["sessions"][s_file.name] = load_json(s_file)
+                # Versiones de ADN
+                adn_versions_dir = brand_dir / "adn_versions"
+                if adn_versions_dir.exists():
+                    brand_data["adn_versions"] = {}
+                    for v_file in adn_versions_dir.glob("*.json"):
+                        brand_data["adn_versions"][v_file.name] = load_json(v_file)
+                # Campañas de la marca
+                campaigns_dir = brand_dir / "campaigns"
+                if campaigns_dir.exists():
+                    brand_data["campaigns"] = {}
+                    for c_dir in campaigns_dir.iterdir():
+                        if c_dir.is_dir():
+                            campaign_data = {}
+                            for c_file in c_dir.glob("*.json"):
+                                campaign_data[c_file.name] = load_json(c_file)
+                            brand_data["campaigns"][c_dir.name] = campaign_data
+                export_data["brands"].append(brand_data)
+
+    return export_data
+
+
+@app.get("/api/export")
+def export_all_data():
+    """Exporta todos los datos del sistema en un archivo JSON firmado con hash SHA-256.
+
+    El archivo resultante contiene:
+    - Todas las marcas con su ADN, sesiones y campañas
+    - Configuración de agentes y prompts
+    - Skills personalizados
+    - Hash SHA-256 para verificación de integridad
+    """
+    try:
+        export_data = _collect_export_data()
+
+        # Serializar los datos (sin el hash) para calcular el hash
+        data_json = json.dumps(export_data, ensure_ascii=False, sort_keys=True)
+        data_bytes = data_json.encode("utf-8")
+        integrity_hash = _compute_data_hash(data_bytes)
+
+        # Crear el paquete final con el hash incluido
+        export_package = {
+            "integrity_hash": integrity_hash,
+            "hash_algorithm": "sha256",
+            "data": export_data,
+        }
+
+        # Guardar en archivo temporal y devolver
+        export_filename = f"ccs_brand_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+        exports_dir = DATA_DIR / "exports"
+        exports_dir.mkdir(parents=True, exist_ok=True)
+        export_file = exports_dir / export_filename
+
+        save_json(export_file, export_package)
+
+        logger.info(f"Exportaci\u00f3n completada: {export_filename} (hash: {integrity_hash[:16]}...)")
+
+        return FileResponse(
+            path=str(export_file),
+            filename=export_filename,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{export_filename}"'},
+        )
+
+    except Exception as e:
+        logger.error(f"Error en exportaci\u00f3n: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al exportar datos: {str(e)}")
+
+
+@app.post("/api/import")
+async def import_all_data(file: UploadFile = File(...)):
+    """Importa datos desde un archivo de exportación, verificando integridad por hash.
+
+    Proceso:
+    1. Lee el archivo subido
+    2. Verifica el hash SHA-256 para asegurar que no fue modificado
+    3. Restaura marcas, ADN, campañas, agentes, prompts y skills
+    4. No sobreescribe datos existentes (merge inteligente)
+    """
+    try:
+        # Leer el archivo subido
+        content = await file.read()
+        try:
+            package = json.loads(content.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(status_code=400, detail=f"El archivo no es un JSON v\u00e1lido: {str(e)}")
+
+        # Validar estructura del paquete
+        if "integrity_hash" not in package or "data" not in package:
+            raise HTTPException(
+                status_code=400,
+                detail="Archivo inv\u00e1lido. No tiene la estructura de exportaci\u00f3n esperada (falta integrity_hash o data)."
+            )
+
+        stored_hash = package["integrity_hash"]
+        export_data = package["data"]
+
+        # Verificar integridad: recalcular hash y comparar
+        data_json = json.dumps(export_data, ensure_ascii=False, sort_keys=True)
+        data_bytes = data_json.encode("utf-8")
+        computed_hash = _compute_data_hash(data_bytes)
+
+        if computed_hash != stored_hash:
+            logger.warning(f"Importaci\u00f3n rechazada: hash no coincide. Esperado={stored_hash[:16]}..., Calculado={computed_hash[:16]}...")
+            raise HTTPException(
+                status_code=400,
+                detail="Verificaci\u00f3n de integridad fallida. El archivo fue modificado despu\u00e9s de la exportaci\u00f3n. "
+                       "No se puede importar un archivo alterado por seguridad."
+            )
+
+        # Validar versión de exportación
+        export_version = export_data.get("export_version", "unknown")
+        if export_version != "1.0":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Versi\u00f3n de exportaci\u00f3n no soportada: {export_version}. Se requiere versi\u00f3n 1.0."
+            )
+
+        # --- Importar datos ---
+        imported_stats = {
+            "brands": 0,
+            "campaigns": 0,
+            "prompts": 0,
+            "skills": 0,
+            "skipped_existing": 0,
+        }
+
+        # 1. Config (merge, no sobreescribir)
+        if export_data.get("config"):
+            config_file = DATA_DIR / "config.json"
+            existing_config = load_json(config_file, {})
+            # Solo importar claves que no existan
+            for key, value in export_data["config"].items():
+                if key not in existing_config:
+                    existing_config[key] = value
+            save_json(config_file, existing_config)
+
+        # 2. Agentes
+        if export_data.get("agents"):
+            agents_file = DATA_DIR / "agents" / "agents.json"
+            existing_agents = load_json(agents_file, {})
+            imported_agents = export_data["agents"]
+            if isinstance(imported_agents, dict) and "agents" in imported_agents:
+                for agent in imported_agents["agents"]:
+                    agent_id = agent.get("id")
+                    # Solo agregar si no existe
+                    existing_ids = [a.get("id") for a in existing_agents.get("agents", [])]
+                    if agent_id and agent_id not in existing_ids:
+                        existing_agents.setdefault("agents", []).append(agent)
+            save_json(agents_file, existing_agents)
+
+        # 3. Prompts del sistema
+        if export_data.get("prompts"):
+            prompts_dir = DATA_DIR / "prompts" / "system"
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+            for name, content_text in export_data["prompts"].items():
+                prompt_file = prompts_dir / f"{name}.md"
+                if not prompt_file.exists():
+                    prompt_file.write_text(content_text, encoding="utf-8")
+                    imported_stats["prompts"] += 1
+                else:
+                    imported_stats["skipped_existing"] += 1
+
+        # 4. Skills
+        if export_data.get("skills"):
+            skills_dir = DATA_DIR / "prompts" / "skills"
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            for name, content_text in export_data["skills"].items():
+                skill_file = skills_dir / f"{name}.md"
+                if not skill_file.exists():
+                    skill_file.write_text(content_text, encoding="utf-8")
+                    imported_stats["skills"] += 1
+                else:
+                    imported_stats["skipped_existing"] += 1
+
+        # 5. Marcas (con todo su contenido)
+        if export_data.get("brands"):
+            brands_dir = DATA_DIR / "brands"
+            brands_dir.mkdir(parents=True, exist_ok=True)
+
+            for brand_export in export_data["brands"]:
+                brand_id = brand_export.get("id")
+                if not brand_id:
+                    continue
+
+                brand_dir = brands_dir / brand_id
+                if brand_dir.exists():
+                    # La marca ya existe, no sobreescribir
+                    imported_stats["skipped_existing"] += 1
+                    continue
+
+                brand_dir.mkdir(parents=True, exist_ok=True)
+
+                # Archivos JSON de la marca
+                for filename, file_data in brand_export.get("files", {}).items():
+                    if file_data:
+                        save_json(brand_dir / filename, file_data)
+
+                # Sesiones de entrevista
+                if brand_export.get("sessions"):
+                    sessions_dir = brand_dir / "sessions"
+                    sessions_dir.mkdir(parents=True, exist_ok=True)
+                    for s_name, s_data in brand_export["sessions"].items():
+                        if s_data:
+                            save_json(sessions_dir / s_name, s_data)
+
+                # Versiones de ADN
+                if brand_export.get("adn_versions"):
+                    adn_dir = brand_dir / "adn_versions"
+                    adn_dir.mkdir(parents=True, exist_ok=True)
+                    for v_name, v_data in brand_export["adn_versions"].items():
+                        if v_data:
+                            save_json(adn_dir / v_name, v_data)
+
+                # Campañas
+                if brand_export.get("campaigns"):
+                    campaigns_dir = brand_dir / "campaigns"
+                    campaigns_dir.mkdir(parents=True, exist_ok=True)
+                    for c_id, c_files in brand_export["campaigns"].items():
+                        c_dir = campaigns_dir / c_id
+                        c_dir.mkdir(parents=True, exist_ok=True)
+                        for c_filename, c_data in c_files.items():
+                            if c_data:
+                                save_json(c_dir / c_filename, c_data)
+                        imported_stats["campaigns"] += 1
+
+                imported_stats["brands"] += 1
+
+        logger.info(f"Importaci\u00f3n completada: {imported_stats}")
+
+        return {
+            "status": "success",
+            "message": "Importaci\u00f3n completada exitosamente. Integridad verificada.",
+            "stats": imported_stats,
+            "source_exported_at": export_data.get("exported_at", "desconocido"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en importaci\u00f3n: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al importar datos: {str(e)}")
+
+
+@app.get("/api/export/info")
+def export_info():
+    """Retorna información sobre qué se exportar\u00eda sin ejecutar la exportación."""
+    try:
+        brands_dir = DATA_DIR / "brands"
+        brand_count = 0
+        campaign_count = 0
+        if brands_dir.exists():
+            for brand_dir in brands_dir.iterdir():
+                if brand_dir.is_dir():
+                    brand_count += 1
+                    campaigns_dir = brand_dir / "campaigns"
+                    if campaigns_dir.exists():
+                        campaign_count += sum(1 for d in campaigns_dir.iterdir() if d.is_dir())
+
+        prompts_dir = DATA_DIR / "prompts" / "system"
+        prompt_count = len(list(prompts_dir.glob("*.md"))) if prompts_dir.exists() else 0
+
+        skills_dir = DATA_DIR / "prompts" / "skills"
+        skill_count = len(list(skills_dir.glob("*.md"))) if skills_dir.exists() else 0
+
+        return {
+            "brands": brand_count,
+            "campaigns": campaign_count,
+            "prompts": prompt_count,
+            "skills": skill_count,
+            "has_config": (DATA_DIR / "config.json").exists(),
+            "has_agents": (DATA_DIR / "agents" / "agents.json").exists(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
 
