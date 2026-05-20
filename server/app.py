@@ -4837,17 +4837,41 @@ def _collect_export_data() -> dict:
                     brand_data["adn_versions"] = {}
                     for v_file in adn_versions_dir.glob("*.json"):
                         brand_data["adn_versions"][v_file.name] = load_json(v_file)
-                # Campañas de la marca
-                campaigns_dir = brand_dir / "campaigns"
-                if campaigns_dir.exists():
-                    brand_data["campaigns"] = {}
-                    for c_dir in campaigns_dir.iterdir():
-                        if c_dir.is_dir():
-                            campaign_data = {}
-                            for c_file in c_dir.glob("*.json"):
-                                campaign_data[c_file.name] = load_json(c_file)
-                            brand_data["campaigns"][c_dir.name] = campaign_data
                 export_data["brands"].append(brand_data)
+
+    # Campañas (se almacenan en DATA_DIR/campaigns/{brand_id}_{campaign_id}/)
+    campaigns_root = DATA_DIR / "campaigns"
+    if campaigns_root.exists():
+        export_data["campaigns"] = []
+        for camp_dir in campaigns_root.iterdir():
+            if camp_dir.is_dir():
+                campaign_export = {
+                    "dir_name": camp_dir.name,
+                    "files": {},
+                    "publications": [],
+                }
+                # Archivos JSON de la campaña (campaign.json, etc.)
+                for c_file in camp_dir.glob("*.json"):
+                    campaign_export["files"][c_file.name] = load_json(c_file)
+                # Publicaciones (subdirectorios con publication.json)
+                pubs_dir = camp_dir / "publications"
+                if pubs_dir.exists():
+                    for pub_dir in pubs_dir.iterdir():
+                        if pub_dir.is_dir():
+                            pub_data = {"dir_name": pub_dir.name, "files": {}}
+                            for p_file in pub_dir.glob("*.json"):
+                                pub_data["files"][p_file.name] = load_json(p_file)
+                            # Incluir imágenes como base64 si existen
+                            for img_file in pub_dir.glob("*.png"):
+                                pub_data.setdefault("images", {})
+                                img_bytes = img_file.read_bytes()
+                                pub_data["images"][img_file.name] = base64.b64encode(img_bytes).decode("ascii")
+                            for img_file in pub_dir.glob("*.jpg"):
+                                pub_data.setdefault("images", {})
+                                img_bytes = img_file.read_bytes()
+                                pub_data["images"][img_file.name] = base64.b64encode(img_bytes).decode("ascii")
+                            campaign_export["publications"].append(pub_data)
+                export_data["campaigns"].append(campaign_export)
 
     return export_data
 
@@ -5044,19 +5068,55 @@ async def import_all_data(file: UploadFile = File(...)):
                         if v_data:
                             save_json(adn_dir / v_name, v_data)
 
-                # Campañas
-                if brand_export.get("campaigns"):
-                    campaigns_dir = brand_dir / "campaigns"
-                    campaigns_dir.mkdir(parents=True, exist_ok=True)
-                    for c_id, c_files in brand_export["campaigns"].items():
-                        c_dir = campaigns_dir / c_id
-                        c_dir.mkdir(parents=True, exist_ok=True)
-                        for c_filename, c_data in c_files.items():
-                            if c_data:
-                                save_json(c_dir / c_filename, c_data)
-                        imported_stats["campaigns"] += 1
-
                 imported_stats["brands"] += 1
+
+        # 6. Campañas (se almacenan en DATA_DIR/campaigns/{brand_id}_{campaign_id}/)
+        if export_data.get("campaigns"):
+            campaigns_root = DATA_DIR / "campaigns"
+            campaigns_root.mkdir(parents=True, exist_ok=True)
+
+            for camp_export in export_data["campaigns"]:
+                dir_name = camp_export.get("dir_name")
+                if not dir_name:
+                    continue
+
+                camp_dir = campaigns_root / dir_name
+                if camp_dir.exists():
+                    # La campaña ya existe, no sobreescribir
+                    imported_stats["skipped_existing"] += 1
+                    continue
+
+                camp_dir.mkdir(parents=True, exist_ok=True)
+
+                # Archivos JSON de la campaña (campaign.json, etc.)
+                for filename, file_data in camp_export.get("files", {}).items():
+                    if file_data:
+                        save_json(camp_dir / filename, file_data)
+
+                # Publicaciones
+                if camp_export.get("publications"):
+                    pubs_dir = camp_dir / "publications"
+                    pubs_dir.mkdir(parents=True, exist_ok=True)
+
+                    for pub_export in camp_export["publications"]:
+                        pub_dir_name = pub_export.get("dir_name")
+                        if not pub_dir_name:
+                            continue
+                        pub_dir = pubs_dir / pub_dir_name
+                        pub_dir.mkdir(parents=True, exist_ok=True)
+
+                        # Archivos JSON de la publicación
+                        for p_filename, p_data in pub_export.get("files", {}).items():
+                            if p_data:
+                                save_json(pub_dir / p_filename, p_data)
+
+                        # Imágenes (base64 -> archivos)
+                        if pub_export.get("images"):
+                            for img_name, img_b64 in pub_export["images"].items():
+                                img_bytes = base64.b64decode(img_b64)
+                                (pub_dir / img_name).write_bytes(img_bytes)
+
+                imported_stats["campaigns"] += 1
 
         logger.info(f"Importaci\u00f3n completada: {imported_stats}")
 
@@ -5080,14 +5140,14 @@ def export_info():
     try:
         brands_dir = DATA_DIR / "brands"
         brand_count = 0
-        campaign_count = 0
         if brands_dir.exists():
-            for brand_dir in brands_dir.iterdir():
-                if brand_dir.is_dir():
-                    brand_count += 1
-                    campaigns_dir = brand_dir / "campaigns"
-                    if campaigns_dir.exists():
-                        campaign_count += sum(1 for d in campaigns_dir.iterdir() if d.is_dir())
+            brand_count = sum(1 for d in brands_dir.iterdir() if d.is_dir())
+
+        # Campañas se almacenan en DATA_DIR/campaigns/
+        campaigns_root = DATA_DIR / "campaigns"
+        campaign_count = 0
+        if campaigns_root.exists():
+            campaign_count = sum(1 for d in campaigns_root.iterdir() if d.is_dir())
 
         prompts_dir = DATA_DIR / "prompts" / "system"
         prompt_count = len(list(prompts_dir.glob("*.md"))) if prompts_dir.exists() else 0
