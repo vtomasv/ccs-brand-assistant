@@ -39,4 +39,9 @@ FORMATO DE RESPUESTA (JSON estricto):
   "narrative_structure": "string - estructura narrativa del sitio"
 }
 
-Responde ÚNICAMENTE con el JSON válido, sin texto adicional, sin bloques de código markdown, sin explicaciones.
+REGLAS ESTRICTAS DE FORMATO:
+- Responde ÚNICAMENTE con el JSON válido.
+- NO agregues comentarios dentro del JSON (ni //, ni /* */).
+- NO uses bloques de código markdown (ni ```json ni ```).
+- NO agregues texto explicativo antes o después del JSON.
+- El JSON debe ser parseable directamente con json.loads() sin modificaciones.

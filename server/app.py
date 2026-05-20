@@ -1590,8 +1590,23 @@ Responde en formato JSON con los campos del ADN empresarial."""
         with _analyze_progress_lock:
             _analyze_progress.pop(brand_id, None)
 
+    except HTTPException as he:
+        # HTTPException viene de call_ollama (modelo no disponible, Ollama apagado, etc.)
+        error_msg = he.detail if hasattr(he, 'detail') else str(he)
+        _update_analyze_progress(brand_id, 0, TOTAL_STEPS, "Error de conexi\u00f3n con Ollama", str(error_msg)[:200])
+        brand = load_json(brand_file)
+        brand["onboarding_status"] = "error"
+        brand["error"] = f"Error de Ollama: {error_msg}"
+        brand["updated_at"] = datetime.utcnow().isoformat()
+        save_json(brand_file, brand)
+        log_audit("brand_analyzer", "analyze_website",
+                  {"brand_id": brand_id, "url": url},
+                  "", get_active_model(), 0, False, str(error_msg))
+        logger.error(f"Error de Ollama en an\u00e1lisis de marca {brand_id}: {error_msg}")
+        with _analyze_progress_lock:
+            _analyze_progress.pop(brand_id, None)
     except Exception as e:
-        _update_analyze_progress(brand_id, 0, TOTAL_STEPS, "Error en análisis", str(e)[:200])
+        _update_analyze_progress(brand_id, 0, TOTAL_STEPS, "Error en an\u00e1lisis", str(e)[:200])
         brand = load_json(brand_file)
         brand["onboarding_status"] = "error"
         brand["error"] = str(e)
@@ -1600,8 +1615,8 @@ Responde en formato JSON con los campos del ADN empresarial."""
         log_audit("brand_analyzer", "analyze_website",
                   {"brand_id": brand_id, "url": url},
                   "", get_active_model(), 0, False, str(e))
-        logger.error(f"Error en análisis de marca {brand_id}: {e}")
-        # Limpiar progreso después de un tiempo
+        logger.error(f"Error en an\u00e1lisis de marca {brand_id}: {e}")
+        # Limpiar progreso despu\u00e9s de un tiempo
         with _analyze_progress_lock:
             _analyze_progress.pop(brand_id, None)
 
@@ -1707,17 +1722,121 @@ def _scrape_website_fallback(url: str) -> str:
 
 
 def _parse_adn_from_llm(llm_output: str, url: str) -> dict:
-    """Intenta parsear JSON del output del LLM, con fallback a estructura básica."""
+    """Intenta parsear JSON del output del LLM, con fallback a estructura básica.
+
+    Usa _extract_json_from_llm (parser robusto con balance de llaves) y
+    aplica FIELD_ALIASES para normalizar las claves del LLM a las esperadas
+    por el frontend.
+    """
     import re
-    # Buscar bloque JSON en el output
-    json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+
+    # Primero limpiar comentarios tipo // que algunos LLMs agregan dentro del JSON
+    cleaned = re.sub(r'//[^\n]*', '', llm_output)
+    # También limpiar comentarios tipo /* ... */
+    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
+
+    # Usar el parser robusto que maneja bloques markdown, JSON balanceado, etc.
+    parsed = _extract_json_from_llm(cleaned)
+
+    if parsed and isinstance(parsed, dict):
+        # Normalizar claves usando FIELD_ALIASES
+        normalized = {}
+        FIELD_ALIASES_LOCAL = {
+            # Inglés → canónico
+            "value_proposition": "value_proposition",
+            "sector": "sector",
+            "tone": "tone",
+            "personality_traits": "personality_traits",
+            "color_palette": "color_palette",
+            "typography": "typography",
+            "visual_style": "visual_style",
+            "products_services": "products_services",
+            "brand_promises": "brand_promises",
+            "target_audience": "target_audience",
+            "formality_level": "formality_level",
+            "differentiators": "differentiators",
+            "content_themes": "content_themes",
+            # Español → canónico
+            "propuesta_de_valor": "value_proposition",
+            "propuesta_valor": "value_proposition",
+            "propuesta de valor": "value_proposition",
+            "tono": "tone",
+            "tono_comunicacional": "tone",
+            "tono comunicacional": "tone",
+            "personalidad": "personality_traits",
+            "personalidad_de_marca": "personality_traits",
+            "personalidad de marca": "personality_traits",
+            "rasgos_personalidad": "personality_traits",
+            "rasgos de personalidad": "personality_traits",
+            "paleta_colores": "color_palette",
+            "paleta_de_colores": "color_palette",
+            "paleta de colores": "color_palette",
+            "colores": "color_palette",
+            "tipografia": "typography",
+            "tipograf\u00eda": "typography",
+            "estilo_visual": "visual_style",
+            "estilo visual": "visual_style",
+            "productos_servicios": "products_services",
+            "productos y servicios": "products_services",
+            "productos": "products_services",
+            "servicios": "products_services",
+            "promesas": "brand_promises",
+            "promesas_de_marca": "brand_promises",
+            "promesas de marca": "brand_promises",
+            "publico_objetivo": "target_audience",
+            "p\u00fablico objetivo": "target_audience",
+            "p\u00fablico_objetivo": "target_audience",
+            "audiencia": "target_audience",
+            "audiencia_objetivo": "target_audience",
+            "nivel_formalidad": "formality_level",
+            "nivel de formalidad": "formality_level",
+            "formalidad": "formality_level",
+            "diferenciadores": "differentiators",
+            "diferenciadores_competitivos": "differentiators",
+            "diferenciadores competitivos": "differentiators",
+            "temas_contenido": "content_themes",
+            "temas_de_contenido": "content_themes",
+            "temas de contenido": "content_themes",
+            "temas": "content_themes",
+        }
+
+        for raw_key, value in parsed.items():
+            if value is None or value == "" or value == []:
+                continue
+            # Normalizar la clave
+            key_lower = raw_key.lower().strip()
+            # Reemplazar espacios por underscores para buscar en aliases
+            key_underscore = key_lower.replace(" ", "_")
+            canonical = FIELD_ALIASES_LOCAL.get(key_lower) or \
+                        FIELD_ALIASES_LOCAL.get(key_underscore) or \
+                        key_underscore
+            normalized[canonical] = value
+
+        # Asegurar que raw_analysis y source_url estén presentes
+        normalized["raw_analysis"] = llm_output[:2000]
+        normalized["source_url"] = url
+
+        # Asegurar que formality_level tenga un valor por defecto
+        if "formality_level" not in normalized:
+            normalized["formality_level"] = "medium"
+
+        logger.info(f"[ADN Parser] Campos extra\u00eddos: {list(normalized.keys())}")
+        return normalized
+
+    # Si _extract_json_from_llm falló, intentar con regex simple como último recurso
+    json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
     if json_match:
         try:
-            return json.loads(json_match.group())
+            raw_parsed = json.loads(json_match.group())
+            if isinstance(raw_parsed, dict):
+                raw_parsed["raw_analysis"] = llm_output[:2000]
+                raw_parsed["source_url"] = url
+                return raw_parsed
         except json.JSONDecodeError:
             pass
 
-    # Fallback: estructura básica inferida del texto
+    # Fallback: estructura básica con el texto crudo para que el usuario pueda ver qué devolvió el LLM
+    logger.warning(f"[ADN Parser] No se pudo parsear JSON del LLM. Output: {llm_output[:200]}")
     return {
         "value_proposition": "",
         "sector": "",
@@ -1730,6 +1849,8 @@ def _parse_adn_from_llm(llm_output: str, url: str) -> dict:
         "brand_promises": [],
         "target_audience": "",
         "formality_level": "medium",
+        "differentiators": [],
+        "content_themes": [],
         "raw_analysis": llm_output[:2000],
         "source_url": url,
     }
@@ -1754,7 +1875,8 @@ Debes identificar y estructurar en formato JSON:
 - differentiators: diferenciadores competitivos detectados (lista)
 - content_themes: temas frecuentes de contenido (lista)
 
-Responde ÚNICAMENTE con el JSON, sin texto adicional."""
+IMPORTANTE: Responde ÚNICAMENTE con JSON válido parseable.
+NO agregues comentarios (// ni /* */), NO uses bloques markdown, NO agregues texto extra."""
 
 
 # ---------------------------------------------------------------------------
