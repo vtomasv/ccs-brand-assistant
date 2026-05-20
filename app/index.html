@@ -2212,8 +2212,10 @@ function renderADN(adn) {
   html += '</div>';
 
   if (fields.raw_analysis) {
-    html += '<div style="margin-top:16px"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">An\u00e1lisis completo del agente</div>';
-    html += '<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);max-height:200px;overflow-y:auto;white-space:pre-wrap">' + escapeHtml(fields.raw_analysis) + '</div></div>';
+    html += '<details style="margin-top:16px">';
+    html += '<summary style="font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none;padding:6px 0">&#9654; An\u00e1lisis completo del agente <span style="font-size:10px;opacity:0.7">(click para expandir)</span></summary>';
+    html += '<div style="background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text-muted);max-height:200px;overflow-y:auto;white-space:pre-wrap;margin-top:8px">' + escapeHtml(fields.raw_analysis) + '</div>';
+    html += '</details>';
   }
 
   html += '</div>';
