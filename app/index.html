@@ -1256,8 +1256,6 @@
         <label>Idioma principal</label>
         <select id="newBrandLanguage">
           <option value="es">Español</option>
-          <option value="en">Inglés</option>
-          <option value="pt">Portugués</option>
         </select>
       </div>
     </div>
@@ -1595,6 +1593,17 @@ function loadDashboardStats() {
       document.getElementById('statCampaigns').textContent = data.campaigns || 0;
       document.getElementById('statPublications').textContent = data.publications || 0;
 
+      // Sincronizar state.brands con el conteo real del backend
+      if (data.brands && data.brands > 0 && state.brands.length === 0) {
+        // Recargar marcas si el state est\u00e1 vac\u00edo pero el backend tiene datos
+        fetch(apiUrl('/brands'))
+          .then(function(r2) { return r2.json(); })
+          .then(function(bd) {
+            state.brands = bd.brands || [];
+            document.getElementById('brandsBadge').textContent = state.brands.length;
+          }).catch(function() {});
+      }
+
       // Actualizar subtextos con desglose
       var pubStatus = data.pub_by_status || {};
       var pubEl = document.getElementById('statPublications');
@@ -1614,13 +1623,13 @@ function loadDashboardStats() {
           var html = '';
           for (var i = 0; i < data.recent_campaigns.length; i++) {
             var c = data.recent_campaigns[i];
-            html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg-base);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="selectCampaignFromDashboard(\'' + c.id + '\')">';
+            html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg-base);border-radius:6px;margin-bottom:6px">';
             html += '<div style="width:8px;height:8px;border-radius:50%;background:var(--primary);flex-shrink:0"></div>';
             html += '<div style="flex:1;min-width:0">';
             html += '<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(c.name || '') + '</div>';
-            html += '<div style="font-size:10px;color:var(--text-muted)">' + (c.channels || []).join(' · ') + '</div>';
+            html += '<div style="font-size:10px;color:var(--text-muted)">' + (c.channels || []).join(' \u00b7 ') + '</div>';
             html += '</div>';
-            html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();selectCampaignFromDashboard(\'' + c.id + '\')">Ver</button>';
+            html += '<button class="btn btn-sm btn-secondary" onclick="selectCampaignFromDashboard(\'' + c.id + '\')">Ver</button>';
             html += '</div>';
           }
           recentEl.innerHTML = html;
@@ -1682,8 +1691,16 @@ function selectCampaignFromDashboard(campaignId) {
     state.activeCampaign = found;
     navigateTo('calendar');
   } else {
-    // Buscar en todas las marcas
-    navigateTo('campaigns');
+    // Cargar la campaña desde el backend buscando en todas las marcas
+    fetch(apiUrl('/campaigns/' + campaignId + '/progress'))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        state.activeCampaign = { id: campaignId, name: data.campaign_id || campaignId };
+        navigateTo('calendar');
+      })
+      .catch(function() {
+        navigateTo('campaigns');
+      });
   }
 }
 
@@ -1773,14 +1790,15 @@ function renderBrands() {
     if (b.website) {
       html += '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(b.website) + '</div>';
     }
-    html += '<div style="display:flex;gap:6px;margin-top:12px">';
-    html += '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();selectBrandAndGo(\'' + b.id + '\',\'adn\')">Ver ADN</button>';
+    html += '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">';
+    html += '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();selectBrandAndGo(\'' + b.id + '\',\'adn\')">・Ver ADN</button>';
     if (b.website && b.onboarding_status === 'pending') {
-      html += '<button class="btn btn-sm btn-accent" onclick="event.stopPropagation();analyzeWebsite(\'' + b.id + '\',\'' + escapeHtml(b.website) + '\')">Analizar web</button>';
+      html += '<button class="btn btn-sm btn-accent" onclick="event.stopPropagation();analyzeWebsite(\'' + b.id + '\',\'' + escapeHtml(b.website) + '\')">・Analizar web</button>';
     }
     if (b.onboarding_status === 'analyzing') {
       html += '<button class="btn btn-sm btn-secondary" disabled style="cursor:default"><span class="loading-spinner" style="width:10px;height:10px;border-width:1.5px"></span> Analizando...</button>';
     }
+    html += '<button class="btn btn-sm" style="background:rgba(220,38,38,0.1);color:#dc2626;border:1px solid rgba(220,38,38,0.3)" onclick="event.stopPropagation();deleteBrand(\'' + b.id + '\',\'' + escapeHtml(b.name).replace(/'/g, "\\'") + '\')" title="Eliminar marca">&#128465;</button>';
     html += '</div>';
     html += '</div>';
   }
@@ -1815,9 +1833,43 @@ function selectBrandAndGo(brandId, page) {
   navigateTo(page);
 }
 
+function deleteBrand(brandId, brandName) {
+  if (!confirm('\u00bfEst\u00e1s seguro de que deseas eliminar la marca "' + brandName + '"?\n\nEsta acci\u00f3n eliminar\u00e1 todos los datos asociados (ADN, entrevistas, campa\u00f1as) y no se puede deshacer.')) return;
+
+  fetch(apiUrl('/brands/' + brandId), { method: 'DELETE' })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Error al eliminar');
+      return r.json();
+    })
+    .then(function() {
+      showNotification('Marca eliminada correctamente', 'success');
+      // Limpiar estado
+      state.brands = state.brands.filter(function(b) { return b.id !== brandId; });
+      if (state.activeBrand && state.activeBrand.id === brandId) {
+        state.activeBrand = null;
+        document.getElementById('brandSection').style.display = 'none';
+      }
+      document.getElementById('brandsBadge').textContent = state.brands.length;
+      renderBrands();
+    })
+    .catch(function(e) {
+      showNotification('Error al eliminar marca: ' + e.message, 'error');
+    });
+}
+
 function createBrand() {
   var name = document.getElementById('newBrandName').value.trim();
   if (!name) { showNotification('El nombre de la marca es obligatorio', 'error'); return; }
+
+  // Issue 8: Validaci\u00f3n de URL
+  var websiteInput = document.getElementById('newBrandWebsite').value.trim();
+  if (websiteInput) {
+    var urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
+    if (!urlPattern.test(websiteInput)) {
+      showNotification('La URL del sitio web no es v\u00e1lida. Debe comenzar con http:// o https://', 'error');
+      return;
+    }
+  }
 
   setLoading('btnCreateBrand', true, 'Creando...');
 
@@ -1844,6 +1896,8 @@ function createBrand() {
       document.getElementById('brandsBadge').textContent = state.brands.length;
       renderBrands();
       selectBrand(brand.id);
+      // Actualizar stats del dashboard
+      if (typeof loadDashboardStats === 'function') loadDashboardStats();
 
       // Limpiar formulario
       document.getElementById('newBrandName').value = '';
@@ -1890,13 +1944,21 @@ function analyzeWebsite(brandId, url) {
     });
 }
 
+var _brandPollIntervals = {};
+
 function pollBrandStatus(brandId) {
+  // Evitar m\u00faltiples pollings para la misma marca
+  if (_brandPollIntervals[brandId]) {
+    clearInterval(_brandPollIntervals[brandId]);
+  }
+  var notified = false;
   var interval = setInterval(function() {
     fetch(apiUrl('/brands/' + brandId))
       .then(function(r) { return r.json(); })
       .then(function(brand) {
         if (brand.onboarding_status !== 'analyzing') {
           clearInterval(interval);
+          delete _brandPollIntervals[brandId];
           // Actualizar en state
           for (var i = 0; i < state.brands.length; i++) {
             if (state.brands[i].id === brandId) {
@@ -1908,15 +1970,23 @@ function pollBrandStatus(brandId) {
             state.activeBrand = brand;
           }
           renderBrands();
-          if (brand.onboarding_status === 'interviewing') {
-            showNotification('Análisis completado. ADN borrador listo. Puedes iniciar la entrevista.', 'success');
-          } else if (brand.onboarding_status === 'error') {
-            showNotification('Error en el análisis: ' + (brand.error || 'Error desconocido'), 'error');
+          // Notificar solo una vez
+          if (!notified) {
+            notified = true;
+            if (brand.onboarding_status === 'interviewing') {
+              showNotification('An\u00e1lisis completado. ADN borrador listo. Puedes iniciar la entrevista.', 'success');
+            } else if (brand.onboarding_status === 'error') {
+              showNotification('Error en el an\u00e1lisis: ' + (brand.error || 'Error desconocido'), 'error');
+            }
           }
         }
       })
-      .catch(function() { clearInterval(interval); });
+      .catch(function() {
+        clearInterval(interval);
+        delete _brandPollIntervals[brandId];
+      });
   }, 5000);
+  _brandPollIntervals[brandId] = interval;
 }
 
 // ============================================================
@@ -2192,13 +2262,26 @@ function saveEditADNColorPalette() {
 
 function approveADN() {
   if (!state.activeBrand) return;
-  if (!confirm('¿Aprobar esta versión del ADN? Las campañas futuras usarán este ADN como base.')) return;
+  if (!confirm('\u00bfAprobar esta versi\u00f3n del ADN? Las campa\u00f1as futuras usar\u00e1n este ADN como base.')) return;
 
   fetch(apiUrl('/brands/' + state.activeBrand.id + '/adn/approve'), {method: 'POST'})
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Error al aprobar ADN');
+      return r.json();
+    })
     .then(function(data) {
-      showNotification('ADN aprobado correctamente (versión ' + data.version + ')', 'success');
+      showNotification('ADN aprobado correctamente (versi\u00f3n ' + data.version + ')', 'success');
       state.activeBrand.onboarding_status = 'complete';
+      state.activeBrand.adn_version = data.version;
+      // Actualizar en el array de marcas
+      for (var i = 0; i < state.brands.length; i++) {
+        if (state.brands[i].id === state.activeBrand.id) {
+          state.brands[i].onboarding_status = 'complete';
+          state.brands[i].adn_version = data.version;
+          break;
+        }
+      }
+      // Recargar ADN para reflejar el nuevo estado
       loadADN();
     })
     .catch(function(e) {
@@ -2268,10 +2351,21 @@ function sendInterviewMessage() {
 
   addChatMessage('user', message);
   input.value = '';
+  input.disabled = true;
 
   var btn = document.getElementById('btnSendChat');
   btn.disabled = true;
   btn.innerHTML = '<span class="loading-spinner"></span>';
+
+  // Issue 11: Mostrar indicador de "escribiendo" en el chat
+  var typingId = 'typing-indicator-' + Date.now();
+  var chatContainer = document.getElementById('chatMessages');
+  var typingEl = document.createElement('div');
+  typingEl.id = typingId;
+  typingEl.className = 'chat-msg assistant';
+  typingEl.innerHTML = '<div class="chat-bubble assistant" style="display:flex;align-items:center;gap:8px"><span class="loading-spinner" style="width:14px;height:14px;border-width:2px"></span> <span style="color:var(--text-muted);font-size:12px">El agente est\u00e1 escribiendo...</span></div>';
+  chatContainer.appendChild(typingEl);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 
   var payload = {
     brand_id: state.activeBrand.id,
@@ -2286,14 +2380,22 @@ function sendInterviewMessage() {
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      // Remover indicador de typing
+      var ti = document.getElementById(typingId);
+      if (ti) ti.remove();
       btn.disabled = false;
       btn.innerHTML = 'Enviar';
+      input.disabled = false;
+      input.focus();
       state.interviewSessionId = data.session_id;
       addChatMessage('assistant', data.response);
     })
     .catch(function(e) {
+      var ti = document.getElementById(typingId);
+      if (ti) ti.remove();
       btn.disabled = false;
       btn.innerHTML = 'Enviar';
+      input.disabled = false;
       addChatMessage('system-msg', 'Error al contactar al agente: ' + e.message);
     });
 }
@@ -2439,9 +2541,10 @@ function renderCampaigns() {
     }
     html += '</div>';
 
-    html += '<div style="display:flex;gap:6px;margin-top:12px">';
+    html += '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">';
     html += '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();viewCampaignCalendar(\'' + c.id + '\')">Ver calendario</button>';
     html += '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();viewCampaignPublications(\'' + c.id + '\')">Ver publicaciones</button>';
+    html += '<button class="btn btn-sm" style="background:rgba(220,38,38,0.1);color:#dc2626;border:1px solid rgba(220,38,38,0.3)" onclick="event.stopPropagation();deleteCampaign(\'' + c.id + '\',\'' + escapeHtml(c.name).replace(/'/g, "\\'") + '\')" title="Eliminar campa\u00f1a">&#128465; Eliminar</button>';
     html += '</div>';
     html += '</div>';
   }
@@ -2454,6 +2557,27 @@ function renderCampaigns() {
       _pollCampaignProgress(state.campaigns[k].id);
     }
   }
+}
+
+function deleteCampaign(campaignId, campaignName) {
+  if (!confirm('\u00bfEst\u00e1s seguro de que deseas eliminar la campa\u00f1a "' + campaignName + '"?\n\nEsta acci\u00f3n no se puede deshacer.')) return;
+
+  fetch(apiUrl('/campaigns/' + campaignId), { method: 'DELETE' })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Error al eliminar');
+      return r.json();
+    })
+    .then(function() {
+      showNotification('Campa\u00f1a eliminada correctamente', 'success');
+      state.campaigns = state.campaigns.filter(function(c) { return c.id !== campaignId; });
+      if (state.activeCampaign && state.activeCampaign.id === campaignId) {
+        state.activeCampaign = null;
+      }
+      renderCampaigns();
+    })
+    .catch(function(e) {
+      showNotification('Error al eliminar campa\u00f1a: ' + e.message, 'error');
+    });
 }
 
 function selectCampaign(campaignId) {
@@ -2472,7 +2596,9 @@ function viewCampaignCalendar(campaignId) {
 
 function viewCampaignPublications(campaignId) {
   selectCampaign(campaignId);
-  loadPublicationsView(campaignId);
+  // Issue 14: Navegar al calendario en modo lista de publicaciones
+  state.calendarViewMode = 'list';
+  navigateTo('calendar');
 }
 
 function _updateDistHint(val) {
@@ -2485,6 +2611,25 @@ function _updateDistHint(val) {
   }
 }
 
+function _resetCampaignForm() {
+  document.getElementById('campName').value = '';
+  document.getElementById('campObjective').selectedIndex = 0;
+  document.getElementById('campProduct').value = '';
+  document.getElementById('campAudience').value = '';
+  document.getElementById('campStartDate').value = '';
+  document.getElementById('campEndDate').value = '';
+  var checkboxes = ['chInstagram', 'chFacebook', 'chLinkedIn', 'chX', 'chWhatsApp'];
+  for (var i = 0; i < checkboxes.length; i++) {
+    var cb = document.getElementById(checkboxes[i]);
+    if (cb) cb.checked = false;
+  }
+  document.getElementById('campFrequency').selectedIndex = 0;
+  var distEl = document.getElementById('campChannelDistribution');
+  if (distEl) distEl.selectedIndex = 0;
+  var restEl = document.getElementById('campRestrictions');
+  if (restEl) restEl.value = '';
+}
+
 function createCampaign() {
   var name = document.getElementById('campName').value.trim();
   var objective = document.getElementById('campObjective').value;
@@ -2495,6 +2640,27 @@ function createCampaign() {
 
   if (!name || !objective || !product || !audience || !startDate || !endDate) {
     showNotification('Completa todos los campos obligatorios', 'error');
+    return;
+  }
+
+  // Issue 16: Validar que fecha inicio no sea posterior a fecha final
+  if (startDate > endDate) {
+    showNotification('La fecha de inicio no puede ser posterior a la fecha final', 'error');
+    return;
+  }
+
+  // Issue 13: Validar que las fechas sean futuras
+  var today = new Date().toISOString().split('T')[0];
+  if (startDate < today) {
+    showNotification('La fecha de inicio debe ser una fecha futura', 'error');
+    return;
+  }
+
+  // Issue 3: Limitar a m\u00e1ximo 30 d\u00edas corridos (2 semanas de campa\u00f1a recomendadas)
+  var diffMs = new Date(endDate) - new Date(startDate);
+  var diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays > 30) {
+    showNotification('La campa\u00f1a no puede superar los 30 d\u00edas corridos. Se recomienda un m\u00e1ximo de 2 semanas para mejores resultados.', 'error');
     return;
   }
 
@@ -2535,10 +2701,13 @@ function createCampaign() {
   })
     .then(function(r) { return r.json(); })
     .then(function(campaign) {
-      // Rehabilitar botón y cerrar modal INMEDIATAMENTE
-      if (btn) { btn.disabled = false; btn.textContent = 'Generar Campaña con IA'; }
+      // Rehabilitar bot\u00f3n y cerrar modal INMEDIATAMENTE
+      if (btn) { btn.disabled = false; btn.textContent = 'Generar Campa\u00f1a con IA'; }
       closeModal('modalNewCampaign');
-      showNotification('✅ Campaña creada. Generando publicaciones en segundo plano...', 'success');
+      showNotification('Campa\u00f1a creada. Generando publicaciones en segundo plano...', 'success');
+
+      // Issue 18: Limpiar formulario para evitar que valores queden grabados
+      _resetCampaignForm();
 
       // Agregar la campaña al estado con status 'generating'
       campaign.status = campaign.status || 'generating';
@@ -2559,32 +2728,51 @@ function createCampaign() {
  * Usa el endpoint dedicado GET /api/campaigns/{id}/progress.
  * Actualiza la tarjeta de la campaña en tiempo real sin recargar toda la lista.
  */
+// Registro de intervalos activos para evitar duplicados
+var _activePollIntervals = {};
+
 function _pollCampaignProgress(campaignId) {
+  // Evitar m\u00faltiples pollings para la misma campa\u00f1a
+  if (_activePollIntervals[campaignId]) {
+    clearInterval(_activePollIntervals[campaignId]);
+  }
+  var notified = false;
   var interval = setInterval(function() {
     fetch(apiUrl('/campaigns/' + campaignId + '/progress'))
       .then(function(r) { return r.json(); })
       .then(function(prog) {
-        // Actualizar la tarjeta de la campaña en el DOM directamente
+        // Actualizar la tarjeta de la campa\u00f1a en el DOM directamente
         _updateCampaignCardProgress(campaignId, prog);
 
         if (prog.status !== 'generating') {
           clearInterval(interval);
-          // Recargar la lista completa de campañas para reflejar el estado final
-          fetch(apiUrl('/brands/' + state.activeBrand.id + '/campaigns'))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              state.campaigns = data.campaigns || [];
-              renderCampaigns();
-              if (prog.status === 'active') {
-                showNotification('✅ Campaña lista con ' + prog.publications_count + ' publicaciones generadas', 'success');
-              } else if (prog.status === 'error') {
-                showNotification('❌ Error al generar campaña: ' + (prog.error || 'error desconocido'), 'error');
-              }
-            });
+          delete _activePollIntervals[campaignId];
+          // Recargar la lista completa de campa\u00f1as para reflejar el estado final
+          if (state.activeBrand) {
+            fetch(apiUrl('/brands/' + state.activeBrand.id + '/campaigns'))
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                state.campaigns = data.campaigns || [];
+                renderCampaigns();
+                // Notificar solo una vez
+                if (!notified) {
+                  notified = true;
+                  if (prog.status === 'active') {
+                    showNotification('Campa\u00f1a lista con ' + (prog.publications_count || 0) + ' publicaciones generadas', 'success');
+                  } else if (prog.status === 'error') {
+                    showNotification('Error al generar campa\u00f1a: ' + (prog.error || 'error desconocido'), 'error');
+                  }
+                }
+              });
+          }
         }
       })
-      .catch(function() { clearInterval(interval); });
+      .catch(function() {
+        clearInterval(interval);
+        delete _activePollIntervals[campaignId];
+      });
   }, 3000);
+  _activePollIntervals[campaignId] = interval;
 }
 
 // Alias de compatibilidad con código anterior
@@ -2722,6 +2910,12 @@ function renderCalendar() {
   var month = calState.month;
   var pubs = calState.allPubs;
   var filter = calState.channelFilter;
+
+  // Issue 14: Si estamos en modo lista, renderizar lista en vez de calendario
+  if (state.calendarViewMode === 'list') {
+    _renderPublicationsList(content, camp, pubs, filter);
+    return;
+  }
 
   // Filtrar publicaciones por canal si hay filtro
   var filteredPubs = filter ? pubs.filter(function(p) { return p.channel === filter; }) : pubs;
@@ -3004,22 +3198,35 @@ function calChangeFilter(val) {
 
 function calChangeView(view) {
   if (view === 'list') {
-    var content = document.getElementById('calendarContent');
-    var camp = state.activeCampaign;
-    var pubs = calState.allPubs;
-    var filter = calState.channelFilter;
-    var filtered = filter ? pubs.filter(function(p) { return p.channel === filter; }) : pubs;
-    var html = '<div class="card">';
-    html += '<div class="card-header"><div><div class="card-title">Campaña: ' + escapeHtml(camp.name) + '</div>';
-    html += '<div class="card-subtitle">' + filtered.length + ' publicaciones</div></div>';
-    html += '<button class="btn btn-sm btn-primary" onclick="renderCalendar()">&#9632; Mes</button>';
-    html += '</div>';
-    html += renderPublicationsList(filtered);
-    html += '</div>';
-    content.innerHTML = html;
+    state.calendarViewMode = 'list';
+    renderCalendar();
   } else {
+    state.calendarViewMode = 'calendar';
     renderCalendar();
   }
+}
+
+function _renderPublicationsList(content, camp, pubs, filter) {
+  var filtered = filter ? pubs.filter(function(p) { return p.channel === filter; }) : pubs;
+  // Obtener canales disponibles
+  var allChannels = [];
+  for (var ci = 0; ci < pubs.length; ci++) {
+    if (pubs[ci].channel && allChannels.indexOf(pubs[ci].channel) === -1) allChannels.push(pubs[ci].channel);
+  }
+  var html = '<div class="card">';
+  html += '<div class="card-header" style="flex-wrap:wrap;gap:8px"><div><div class="card-title">Publicaciones: ' + escapeHtml(camp.name) + '</div>';
+  html += '<div class="card-subtitle">' + filtered.length + ' publicaciones</div></div>';
+  html += '<div style="display:flex;gap:8px;align-items:center">';
+  html += '<select onchange="calChangeFilter(this.value)" style="width:auto;padding:6px 10px;font-size:12px"><option value="">Todos los canales</option>';
+  for (var j = 0; j < allChannels.length; j++) {
+    html += '<option value="' + allChannels[j] + '"' + (filter === allChannels[j] ? ' selected' : '') + '>' + allChannels[j] + '</option>';
+  }
+  html += '</select>';
+  html += '<button class="btn btn-sm btn-primary" onclick="calChangeView(\'month\')">&#9632; Calendario</button>';
+  html += '</div></div>';
+  html += renderPublicationsList(filtered);
+  html += '</div>';
+  content.innerHTML = html;
 }
 
 function renderPublicationsList(publications) {
@@ -3072,6 +3279,7 @@ function getPubStatusClass(status) {
 }
 
 function loadPublicationsView(campaignId) {
+  state.calendarViewMode = 'list';
   navigateTo('calendar');
 }
 

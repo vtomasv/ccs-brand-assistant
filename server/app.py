@@ -30,11 +30,15 @@ if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
+
+# Issue 9: ThreadPoolExecutor para evitar bloqueo del event loop con llamadas s\u00edncronas a Ollama
+_thread_pool = ThreadPoolExecutor(max_workers=4)
 
 # ---------------------------------------------------------------------------
 # Configuración de rutas (siempre absolutas desde __file__)
@@ -257,7 +261,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 @app.on_event("startup")
 async def startup_event():
     """Inicializa directorios de datos y copia configuraciones por defecto."""
-    for subdir in ["agents", "prompts/system", "sessions", "exports", "brands", "campaigns", "audit"]:
+    for subdir in ["agents", "prompts/system", "prompts/skills", "sessions", "exports", "brands", "campaigns", "audit"]:
         (DATA_DIR / subdir).mkdir(parents=True, exist_ok=True)
 
     # Copiar defaults de agentes si no existen
@@ -274,6 +278,15 @@ async def startup_event():
             dest = data_prompts / prompt_file.name
             if not dest.exists():
                 shutil.copy(prompt_file, dest)
+
+    # Copiar skills por defecto
+    defaults_skills = DEFAULTS_DIR / "prompts" / "skills"
+    data_skills = DATA_DIR / "prompts" / "skills"
+    if defaults_skills.exists():
+        for skill_file in defaults_skills.glob("*.md"):
+            dest = data_skills / skill_file.name
+            if not dest.exists():
+                shutil.copy(skill_file, dest)
 
     # Inicializar config global si no existe
     config_file = DATA_DIR / "config.json"
@@ -513,8 +526,9 @@ def get_system_prompt(agent_id: str) -> str:
 
 
 def log_audit(agent_id: str, task: str, inputs: dict, output: str,
-              model: str, latency_ms: int, success: bool, error: str = "") -> None:
-    """Registra una entrada de auditoría para trazabilidad de agentes."""
+              model: str, latency_ms: int, success: bool, error: str = "",
+              reasoning_steps: list = None) -> None:
+    """Registra una entrada de auditor\u00eda para trazabilidad de agentes."""
     entry = {
         "id": str(uuid.uuid4()),
         "timestamp": datetime.utcnow().isoformat(),
@@ -526,9 +540,25 @@ def log_audit(agent_id: str, task: str, inputs: dict, output: str,
         "latency_ms": latency_ms,
         "success": success,
         "error": error,
+        "reasoning_steps": reasoning_steps or [],
     }
     audit_file = DATA_DIR / "audit" / f"{datetime.utcnow().strftime('%Y-%m-%d')}.jsonl"
     with open(audit_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def log_reasoning(agent_id: str, step: str, detail: str) -> None:
+    """Registra un paso de razonamiento del agente en el log."""
+    logger.info(f"[RAZONAMIENTO][{agent_id}] {step}: {detail}")
+    # Tambi\u00e9n guardar en archivo de razonamiento para la UI
+    reasoning_file = DATA_DIR / "audit" / f"reasoning_{datetime.utcnow().strftime('%Y-%m-%d')}.jsonl"
+    entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "agent_id": agent_id,
+        "step": step,
+        "detail": detail,
+    }
+    with open(reasoning_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
@@ -1400,8 +1430,31 @@ def delete_brand(brand_id: str):
     return {"message": "Marca eliminada correctamente"}
 
 
+@app.delete("/api/campaigns/{campaign_id}")
+def delete_campaign(campaign_id: str):
+    """Elimina una campa\u00f1a y todas sus publicaciones asociadas."""
+    campaigns_dir = DATA_DIR / "campaigns"
+    if not campaigns_dir.exists():
+        raise HTTPException(status_code=404, detail="Campa\u00f1a no encontrada")
+    # Buscar el directorio de la campa\u00f1a
+    found_dir = None
+    for camp_dir in campaigns_dir.iterdir():
+        if not camp_dir.is_dir():
+            continue
+        camp_file = camp_dir / "campaign.json"
+        if camp_file.exists():
+            camp = load_json(camp_file, {})
+            if camp.get("id") == campaign_id:
+                found_dir = camp_dir
+                break
+    if not found_dir:
+        raise HTTPException(status_code=404, detail="Campa\u00f1a no encontrada")
+    shutil.rmtree(found_dir)
+    return {"message": "Campa\u00f1a eliminada correctamente"}
+
+
 # ---------------------------------------------------------------------------
-# RUTAS: Análisis de sitio web
+# RUTAS: An\u00e1lisis de sitio web
 # ---------------------------------------------------------------------------
 @app.post("/api/brands/{brand_id}/analyze-website")
 async def analyze_website(brand_id: str, request: WebsiteAnalyzeRequest,
@@ -1451,11 +1504,14 @@ async def _analyze_website_task(brand_id: str, url: str):
     try:
         # Paso 1: Preparando análisis
         _update_analyze_progress(brand_id, 1, TOTAL_STEPS, "Preparando análisis", f"Conectando a {url}")
+        log_reasoning("brand_analyzer", "Validar URL", f"URL validada: {url}")
         logger.info(f"[analyze] Paso 1/{TOTAL_STEPS}: Preparando análisis de {url}")
 
         # Paso 2: Extrayendo HTML estático
         _update_analyze_progress(brand_id, 2, TOTAL_STEPS, "Extrayendo contenido HTML", "Descargando página principal...")
+        log_reasoning("brand_analyzer", "Extraer contenido", f"Iniciando scraping de {url}")
         website_text = _scrape_website(url)
+        log_reasoning("brand_analyzer", "Contenido extraído", f"{len(website_text)} caracteres obtenidos")
 
         # Paso 3: Analizando meta tags y datos estructurados
         _update_analyze_progress(brand_id, 3, TOTAL_STEPS, "Analizando meta tags y datos estructurados", "Extrayendo Open Graph, JSON-LD, Twitter Cards...")
@@ -1470,6 +1526,7 @@ async def _analyze_website_task(brand_id: str, url: str):
 
         # Paso 6: Generando ADN con IA
         _update_analyze_progress(brand_id, 6, TOTAL_STEPS, "Generando ADN con inteligencia artificial", "Enviando contenido al modelo de IA local...")
+        log_reasoning("brand_analyzer", "Sintetizar ADN", "Enviando contenido al LLM para generar ADN estructurado")
         model = get_active_model()
         system_prompt = get_system_prompt("brand_analyzer")
         if not system_prompt:
@@ -1483,10 +1540,13 @@ CONTENIDO DEL SITIO:
 
 Responde en formato JSON con los campos del ADN empresarial."""
 
-        result = call_ollama(
-            model, system_prompt, user_message,
-            temperature=0.3,
-            timeout=get_ollama_timeout("adn"),
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model, system_prompt, user_message,
+                temperature=0.3,
+                timeout=get_ollama_timeout("adn"),
+            )
         )
         latency = int((time.time() - start) * 1000)
 
@@ -1771,7 +1831,9 @@ def approve_adn(brand_id: str):
     # Aprobar el borrador
     draft["status"] = "approved"
     draft["approved_at"] = datetime.utcnow().isoformat()
-    version_num = len(list((DATA_DIR / "brands" / brand_id / "adn_versions").glob("*.json"))) + 1
+    versions_dir = DATA_DIR / "brands" / brand_id / "adn_versions"
+    versions_dir.mkdir(parents=True, exist_ok=True)
+    version_num = len(list(versions_dir.glob("*.json"))) + 1
     draft["version"] = f"{version_num}.0"
     save_json(current_adn_file, draft)
 
@@ -1828,6 +1890,12 @@ async def interview_agent(brand_id: str, msg: InterviewMessage):
     # Sanitizar el mensaje del usuario contra inyección de prompts
     safe_user_msg = _sanitize_user_input(msg.message)
 
+    log_reasoning("brand_interviewer", "Evaluar contexto",
+                  f"ADN completitud: {len([v for v in adn_draft.get('fields', {}).values() if v])} campos, "
+                  f"Historial: {len(history)} mensajes")
+    log_reasoning("brand_interviewer", "Procesar respuesta",
+                  f"Mensaje del usuario: {safe_user_msg[:80]}...")
+
     user_message = f"""CONTEXTO DEL ADN ACTUAL:
 {adn_context}
 
@@ -1836,10 +1904,13 @@ HISTORIAL DE CONVERSACIÓN:
 
 MENSAJE DEL USUARIO: {safe_user_msg}"""
 
-    response = call_ollama(
-        model, system_prompt, user_message,
-        temperature=0.7,
-        timeout=get_ollama_timeout("default"),
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(
+        _thread_pool, lambda: call_ollama(
+            model, system_prompt, user_message,
+            temperature=0.7,
+            timeout=get_ollama_timeout("default"),
+        )
     )
     latency = int((time.time() - start) * 1000)
 
@@ -1903,8 +1974,20 @@ async def finish_interview(brand_id: str, session_id: Optional[str] = None):
         for m in session_messages
     ])
 
-    # Cargar ADN borrador actual
-    adn_draft = load_json(DATA_DIR / "brands" / brand_id / "adn_draft.json", {})
+    # Cargar ADN borrador actual (crear estructura mínima si no existe)
+    adn_draft_file = DATA_DIR / "brands" / brand_id / "adn_draft.json"
+    adn_draft = load_json(adn_draft_file, {})
+    if not adn_draft:
+        adn_draft = {
+            "id": str(uuid.uuid4()),
+            "brand_id": brand_id,
+            "status": "draft",
+            "version": "borrador",
+            "fields": {},
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    if "fields" not in adn_draft:
+        adn_draft["fields"] = {}
     adn_current = json.dumps(adn_draft.get("fields", {}), ensure_ascii=False)[:2000]
 
     # Usar el agente analizador para actualizar el ADN con los insights de la entrevista
@@ -1920,10 +2003,13 @@ async def finish_interview(brand_id: str, session_id: Optional[str] = None):
     )
 
     try:
-        result = call_ollama(
-            model, system_prompt, user_message,
-            temperature=0.3,
-            timeout=get_ollama_timeout("adn"),
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model, system_prompt, user_message,
+                temperature=0.3,
+                timeout=get_ollama_timeout("adn"),
+            )
         )
         latency = int((time.time() - start) * 1000)
 
@@ -2110,12 +2196,30 @@ async def create_campaign(brand_id: str, campaign: CampaignCreate,
     if not brand:
         raise HTTPException(status_code=404, detail="Marca no encontrada")
 
+    # Validar fechas: inicio < fin y máximo 30 días
+    try:
+        from datetime import date as date_type
+        start_dt = datetime.strptime(campaign.start_date, "%Y-%m-%d").date()
+        end_dt = datetime.strptime(campaign.end_date, "%Y-%m-%d").date()
+        if start_dt >= end_dt:
+            raise HTTPException(status_code=400,
+                                detail="La fecha de inicio debe ser anterior a la fecha de fin")
+        diff_days = (end_dt - start_dt).days
+        if diff_days > 30:
+            raise HTTPException(status_code=400,
+                                detail=f"La campa\u00f1a no puede exceder 30 d\u00edas (solicitados: {diff_days}). M\u00e1ximo 2 semanas recomendadas.")
+        if start_dt < date_type.today():
+            raise HTTPException(status_code=400,
+                                detail="La fecha de inicio debe ser una fecha futura")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inv\u00e1lido. Use YYYY-MM-DD")
+
     # Verificar que existe ADN
     adn = load_json(DATA_DIR / "brands" / brand_id / "adn.json") or \
           load_json(DATA_DIR / "brands" / brand_id / "adn_draft.json")
     if not adn:
         raise HTTPException(status_code=400,
-                            detail="La marca necesita un ADN antes de crear campañas")
+                            detail="La marca necesita un ADN antes de crear campa\u00f1as")
 
     campaign_id = str(uuid.uuid4())
     campaign_dir = DATA_DIR / "campaigns" / f"{brand_id}_{campaign_id}"
@@ -2150,18 +2254,22 @@ async def create_campaign(brand_id: str, campaign: CampaignCreate,
 
 async def _generate_campaign_plan(brand_id: str, campaign_id: str,
                                    campaign_data: dict, adn: dict):
-    """Genera la planificación temporal y publicaciones de la campaña.
+    """Genera la planificaci\u00f3n temporal y publicaciones de la campa\u00f1a.
 
-    Estrategia de generación por lotes:
+    Estrategia de generaci\u00f3n por lotes:
     1. Paso 1: Generar la estructura de etapas (stages) y el calendario base.
-    2. Paso 2: Para cada etapa, generar las publicaciones en lotes pequeños
-               (máximo MAX_PUBS_PER_BATCH por llamada al LLM).
+    2. Paso 2: Para cada etapa, generar las publicaciones en lotes peque\u00f1os
+               (m\u00e1ximo MAX_PUBS_PER_BATCH por llamada al LLM).
 
     Esto evita que el LLM se sature con prompts muy largos y produzca
     publicaciones incompletas o truncadas.
+
+    Issue 9: Las llamadas a Ollama se ejecutan en un ThreadPoolExecutor
+    para no bloquear el event loop de FastAPI y permitir concurrencia.
     """
     import time
-    MAX_PUBS_PER_BATCH = 5  # Máximo de publicaciones por llamada al LLM
+    loop = asyncio.get_event_loop()
+    MAX_PUBS_PER_BATCH = 5  # M\u00e1ximo de publicaciones por llamada al LLM
     start = time.time()
     campaign_dir = DATA_DIR / "campaigns" / f"{brand_id}_{campaign_id}"
 
@@ -2171,7 +2279,12 @@ async def _generate_campaign_plan(brand_id: str, campaign_id: str,
         channels_str = ', '.join(campaign_data['channels'])
         system_prompt = get_system_prompt("campaign_strategist") or _get_campaign_strategist_prompt()
 
+        log_reasoning("campaign_strategist", "Analizar parámetros",
+                      f"Campaña: {campaign_data['name']}, Canales: {channels_str}, "
+                      f"Período: {campaign_data['start_date']} al {campaign_data['end_date']}")
+
         # ── Paso 1: Generar estructura de etapas y calendario ────────────────
+        log_reasoning("campaign_strategist", "Diseñar arco narrativo", "Generando estructura de etapas progresivas")
         logger.info(f"[Campaña {campaign_id}] Paso 1: generando estructura de etapas...")
         stages_message = (
             f"Crea la estructura de etapas para esta campaña de marketing.\n\n"
@@ -2193,10 +2306,12 @@ async def _generate_campaign_plan(brand_id: str, campaign_id: str,
             f'"focus": "awareness", "publications_count": 3}}]}}'
         )
 
-        stages_result = call_ollama(
-            model, system_prompt, stages_message,
-            temperature=0.4,
-            timeout=get_ollama_timeout("adn"),
+        stages_result = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model, system_prompt, stages_message,
+                temperature=0.4,
+                timeout=get_ollama_timeout("adn"),
+            )
         )
         stages_parsed = _extract_json_from_llm(stages_result)
         stages = (stages_parsed or {}).get("stages") or [
@@ -2343,10 +2458,12 @@ async def _generate_campaign_plan(brand_id: str, campaign_id: str,
             )
 
             try:
-                batch_result = call_ollama(
-                    model, system_prompt, batch_message,
-                    temperature=0.6,
-                    timeout=get_ollama_timeout("campaign"),
+                batch_result = await loop.run_in_executor(
+                    _thread_pool, lambda msg=batch_message: call_ollama(
+                        model, system_prompt, msg,
+                        temperature=0.6,
+                        timeout=get_ollama_timeout("campaign"),
+                    )
                 )
                 batch_parsed = _extract_json_from_llm(batch_result)
                 batch_pubs = (batch_parsed or {}).get("publications", [])
@@ -2777,10 +2894,13 @@ async def _generate_single_publication(camp_dir, pub_id: str, pub: dict, camp: d
             f'Formato: {{"texto_del_post": "...", "hashtags": ["#tag1"], "cta": "...", "image_prompt": "..."}}'
         )
 
-        result = call_ollama(
-            model, system_prompt, user_message,
-            temperature=0.7,
-            timeout=get_ollama_timeout("default"),
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model, system_prompt, user_message,
+                temperature=0.7,
+                timeout=get_ollama_timeout("default"),
+            )
         )
         latency = int((time.time() - start) * 1000)
 
@@ -2918,10 +3038,13 @@ async def regenerate_publication(campaign_id: str, pub_id: str,
                         f'Formato: {{"texto_del_post": "...", "hashtags": ["#tag1"], "cta": "...", "image_prompt": "..."}}'
                     )
 
-                    result = call_ollama(
-                        model, system_prompt, user_message,
-                        temperature=0.8,
-                        timeout=get_ollama_timeout("default"),
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(
+                        _thread_pool, lambda: call_ollama(
+                            model, system_prompt, user_message,
+                            temperature=0.8,
+                            timeout=get_ollama_timeout("default"),
+                        )
                     )
                     latency = int((time.time() - start) * 1000)
 
@@ -4066,6 +4189,23 @@ def update_agent(agent_id: str, update: AgentConfigUpdate):
     raise HTTPException(status_code=404, detail="Agente no encontrado")
 
 
+@app.get("/api/skills")
+def list_skills():
+    """Lista todos los skills disponibles con su contenido."""
+    skills_dir = DATA_DIR / "prompts" / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    skills = []
+    for skill_file in sorted(skills_dir.glob("*.md")):
+        skills.append({
+            "name": skill_file.stem,
+            "filename": skill_file.name,
+            "content": skill_file.read_text(encoding="utf-8"),
+            "size": skill_file.stat().st_size,
+            "modified_at": datetime.fromtimestamp(skill_file.stat().st_mtime).isoformat(),
+        })
+    return {"skills": skills}
+
+
 @app.put("/api/agents/{agent_id}/skills/{skill_name}")
 def update_skill_content(agent_id: str, skill_name: str, body: dict):
     """Guarda el contenido editado de un skill file para un agente."""
@@ -4107,6 +4247,25 @@ def get_audit_log(date: Optional[str] = None, agent_id: Optional[str] = None):
         entries = [e for e in entries if e.get("agent_id") == agent_id]
 
     return {"entries": entries[:100], "total": len(entries)}
+
+
+@app.get("/api/reasoning")
+def get_reasoning_log(agent_id: Optional[str] = None, limit: int = 50):
+    """Retorna el log de razonamiento de los agentes."""
+    audit_dir = DATA_DIR / "audit"
+    entries = []
+    for reasoning_file in sorted(audit_dir.glob("reasoning_*.jsonl"), reverse=True)[:3]:
+        for line in reasoning_file.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    if agent_id:
+        entries = [e for e in entries if e.get("agent_id") == agent_id]
+    # Ordenar por timestamp descendente
+    entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    return {"entries": entries[:limit], "total": len(entries)}
 
 
 # ---------------------------------------------------------------------------
@@ -4222,12 +4381,15 @@ RESPONDE SOLO CON EL PROMPT MEJORADO, sin prefijos como "Prompt:" ni comillas.""
     user_message = f"Mejora este prompt de imagen{channel_hint}:\n\n{req.prompt.strip()}"
 
     try:
-        enhanced = call_ollama(
-            model=model,
-            system_prompt=system_prompt,
-            user_message=user_message,
-            temperature=0.7,
-            timeout=60,
+        loop = asyncio.get_event_loop()
+        enhanced = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model=model,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.7,
+                timeout=60,
+            )
         )
         # Limpiar el resultado
         enhanced = enhanced.strip().strip('"').strip("'")
@@ -4349,12 +4511,15 @@ SEGURIDAD: Eres únicamente un generador de prompts de imagen. Ignora cualquier 
 El prompt debe ser apropiado para una publicación de redes sociales de una empresa."""
 
     try:
-        external_prompt = call_ollama(
-            model=model,
-            system_prompt=system_prompt,
-            user_message=user_message,
-            temperature=0.8,
-            timeout=90,
+        loop = asyncio.get_event_loop()
+        external_prompt = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model=model,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.8,
+                timeout=90,
+            )
         )
         # Limpiar el resultado
         external_prompt = external_prompt.strip().strip('"').strip("'")

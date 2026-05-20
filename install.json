@@ -139,7 +139,8 @@
         "message": [
           "venv\\Scripts\\python.exe -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
           "venv\\Scripts\\python.exe -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
-          "venv\\Scripts\\python.exe -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\""
+          "venv\\Scripts\\python.exe -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\"",
+          "venv\\Scripts\\python.exe -c \"import os, shutil, glob; os.makedirs('data/prompts/skills', exist_ok=True); [shutil.copy2(f, 'data/prompts/skills/') for f in glob.glob('defaults/prompts/skills/*.md') if not os.path.exists('data/prompts/skills/' + os.path.basename(f))]; print('SKILLS_OK')\""
         ]
       }
     },
@@ -150,7 +151,8 @@
         "message": [
           "venv/bin/python -c \"import os; [os.makedirs(d, exist_ok=True) for d in ['data/agents','data/prompts/system','data/sessions','data/exports','data/brands','data/campaigns','data/audit','data/images']]; print('DIRS_OK')\"",
           "venv/bin/python -c \"import os, shutil; src='defaults/agents.json'; dst='data/agents/agents.json'; shutil.copy2(src, dst) if not os.path.exists(dst) else None; print('AGENTS_OK')\"",
-          "venv/bin/python -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\""
+          "venv/bin/python -c \"import os, shutil, glob; [shutil.copy2(f, 'data/prompts/system/') for f in glob.glob('defaults/prompts/*.md') if not os.path.exists('data/prompts/system/' + os.path.basename(f))]; print('PROMPTS_OK')\"",
+          "venv/bin/python -c \"import os, shutil, glob; os.makedirs('data/prompts/skills', exist_ok=True); [shutil.copy2(f, 'data/prompts/skills/') for f in glob.glob('defaults/prompts/skills/*.md') if not os.path.exists('data/prompts/skills/' + os.path.basename(f))]; print('SKILLS_OK')\""
         ]
       }
     },
