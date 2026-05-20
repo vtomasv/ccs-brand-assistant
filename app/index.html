@@ -1534,6 +1534,7 @@ function getStatusLabel(status) {
     interviewing: 'En entrevista',
     complete: 'Completo',
     error: 'Error',
+    website_error: 'Error en sitio web',
     generating: 'Generando...',
     active: 'Activa',
     paused: 'Pausada',
@@ -1549,6 +1550,7 @@ function getStatusClass(status) {
     interviewing: 'status-interviewing',
     complete: 'status-complete',
     error: 'status-error',
+    website_error: 'status-error',
     generating: 'status-analyzing',
     active: 'status-complete',
     paused: 'status-pending',
@@ -1840,12 +1842,22 @@ function renderBrands() {
     html += '<div class="brand-sector">' + escapeHtml(b.sector || 'Sin sector') + '</div>';
     html += '<div><span class="brand-status ' + getStatusClass(b.onboarding_status) + '">' + getStatusLabel(b.onboarding_status) + '</span></div>';
     if (b.website) {
-      html += '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(b.website) + '</div>';
+      var lockIcon = b.website_locked ? ' &#128274;' : '';
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(b.website) + lockIcon + '</div>';
+    }
+    // Mostrar error de sitio web con opción de editar URL
+    if (b.onboarding_status === 'website_error') {
+      html += '<div style="margin-top:8px;padding:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;font-size:11px;color:#dc2626">';
+      html += '<strong>Error al acceder al sitio web:</strong><br>' + escapeHtml(b.website_error || 'No se pudo conectar') + '</div>';
+      html += '<div style="margin-top:8px"><input type="text" id="fixUrl_' + b.id + '" value="' + escapeHtml(b.website || '') + '" placeholder="https://www.ejemplo.cl" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px" onclick="event.stopPropagation()" /></div>';
     }
     html += '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">';
     html += '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();selectBrandAndGo(\'' + b.id + '\',\'adn\')">・Ver ADN</button>';
     if (b.website && b.onboarding_status === 'pending') {
       html += '<button class="btn btn-sm btn-accent" onclick="event.stopPropagation();analyzeWebsite(\'' + b.id + '\',\'' + escapeHtml(b.website) + '\')">・Analizar web</button>';
+    }
+    if (b.onboarding_status === 'website_error') {
+      html += '<button class="btn btn-sm btn-accent" onclick="event.stopPropagation();updateBrandWebsite(\'' + b.id + '\')">・Corregir URL y reintentar</button>';
     }
     if (b.onboarding_status === 'analyzing') {
       html += '<button class="btn btn-sm btn-secondary" disabled style="cursor:default"><span class="loading-spinner" style="width:10px;height:10px;border-width:1.5px"></span> Analizando...</button>';
@@ -1964,6 +1976,51 @@ function createBrand() {
     });
 }
 
+function updateBrandWebsite(brandId) {
+  var input = document.getElementById('fixUrl_' + brandId);
+  if (!input) { showNotification('No se encontr\u00f3 el campo de URL', 'error'); return; }
+
+  var newUrl = input.value.trim();
+  if (!newUrl) { showNotification('Ingresa una URL v\u00e1lida', 'error'); return; }
+
+  // Validar formato de URL
+  var urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&\/\/=]*)$/;
+  if (!urlPattern.test(newUrl)) {
+    showNotification('La URL no es v\u00e1lida. Debe comenzar con http:// o https://', 'error');
+    return;
+  }
+
+  if (!confirm('\u00bfDeseas actualizar la URL a:\n' + newUrl + '\n\ny reiniciar el an\u00e1lisis del sitio web?')) return;
+
+  fetch(apiUrl('/brands/' + brandId + '/website'), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: newUrl}),
+  })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(err) { throw new Error(err.detail || 'Error desconocido'); });
+      return r.json();
+    })
+    .then(function(data) {
+      showNotification('URL actualizada. Reintentando an\u00e1lisis...', 'success');
+      // Actualizar estado local
+      for (var i = 0; i < state.brands.length; i++) {
+        if (state.brands[i].id === brandId) {
+          state.brands[i].website = newUrl;
+          state.brands[i].onboarding_status = 'analyzing';
+          delete state.brands[i].website_error;
+          break;
+        }
+      }
+      renderBrands();
+      startAnalyzeProgressPolling(brandId);
+      pollBrandStatus(brandId);
+    })
+    .catch(function(e) {
+      showNotification('Error al actualizar URL: ' + e.message, 'error');
+    });
+}
+
 function analyzeWebsite(brandId, url) {
   if (!url) { showNotification('La marca no tiene sitio web configurado', 'warning'); return; }
   showGlobalLoading('Iniciando an\u00e1lisis del sitio web...', 'Conectando con ' + url);
@@ -2026,9 +2083,11 @@ function pollBrandStatus(brandId) {
           if (!notified) {
             notified = true;
             if (brand.onboarding_status === 'interviewing') {
-              showNotification('An\u00e1lisis completado. ADN borrador listo. Puedes iniciar la entrevista.', 'success');
+              showNotification('Análisis completado. ADN borrador listo. Puedes iniciar la entrevista.', 'success');
+            } else if (brand.onboarding_status === 'website_error') {
+              showNotification('El sitio web no es accesible. Por favor corrige la URL e intenta nuevamente.', 'error');
             } else if (brand.onboarding_status === 'error') {
-              showNotification('Error en el an\u00e1lisis: ' + (brand.error || 'Error desconocido'), 'error');
+              showNotification('Error en el análisis: ' + (brand.error || 'Error desconocido'), 'error');
             }
           }
         }

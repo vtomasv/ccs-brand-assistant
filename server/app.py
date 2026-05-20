@@ -1407,13 +1407,26 @@ def get_brand(brand_id: str):
 
 @app.put("/api/brands/{brand_id}")
 def update_brand(brand_id: str, updates: BrandUpdate):
-    """Actualiza los datos de una marca."""
+    """Actualiza los datos de una marca.
+    
+    Si el sitio web ya fue analizado exitosamente (website_locked=True),
+    no se permite modificar el campo website.
+    """
     brand_file = DATA_DIR / "brands" / brand_id / "brand.json"
     brand = load_json(brand_file)
     if not brand:
         raise HTTPException(status_code=404, detail="Marca no encontrada")
 
     update_data = updates.dict(exclude_none=True)
+
+    # Bloquear edición de website si ya fue analizado exitosamente
+    if "website" in update_data and brand.get("website_locked", False):
+        raise HTTPException(
+            status_code=400,
+            detail="El sitio web no se puede modificar porque ya fue analizado exitosamente. "
+                   "El ADN de marca ya se construyó a partir de este sitio."
+        )
+
     brand.update(update_data)
     brand["updated_at"] = datetime.utcnow().isoformat()
     save_json(brand_file, brand)
@@ -1454,7 +1467,68 @@ def delete_campaign(campaign_id: str):
 
 
 # ---------------------------------------------------------------------------
-# RUTAS: An\u00e1lisis de sitio web
+# RUTAS: Actualización de URL de sitio web (solo cuando hay error)
+# ---------------------------------------------------------------------------
+class WebsiteUpdateRequest(BaseModel):
+    url: str
+
+
+@app.put("/api/brands/{brand_id}/website")
+async def update_brand_website(brand_id: str, request: WebsiteUpdateRequest,
+                                background_tasks: BackgroundTasks):
+    """Actualiza la URL del sitio web de una marca y relanza el análisis.
+    
+    Solo se permite cuando:
+    - La marca tiene estado 'website_error' (el sitio anterior dio error)
+    - La marca tiene estado 'pending' (nunca se analizó)
+    
+    NO se permite si website_locked=True (análisis ya exitoso).
+    """
+    brand_file = DATA_DIR / "brands" / brand_id / "brand.json"
+    brand = load_json(brand_file)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Marca no encontrada")
+
+    # Verificar que no esté bloqueado
+    if brand.get("website_locked", False):
+        raise HTTPException(
+            status_code=400,
+            detail="El sitio web no se puede modificar porque ya fue analizado exitosamente."
+        )
+
+    # Solo permitir en estados que lo requieran
+    allowed_states = ["website_error", "pending", "error"]
+    if brand.get("onboarding_status") not in allowed_states:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede cambiar la URL en estado '{brand.get('onboarding_status')}'. "
+                   f"Solo se permite en estados: {', '.join(allowed_states)}"
+        )
+
+    # Validar la nueva URL
+    safe_url = validate_url_safe(request.url)
+
+    # Actualizar marca
+    brand["website"] = safe_url
+    brand["onboarding_status"] = "analyzing"
+    brand.pop("website_error", None)
+    brand.pop("error", None)
+    brand["updated_at"] = datetime.utcnow().isoformat()
+    save_json(brand_file, brand)
+
+    # Relanzar análisis
+    background_tasks.add_task(_analyze_website_task, brand_id, safe_url)
+
+    return {
+        "message": "URL actualizada y an\u00e1lisis reiniciado",
+        "brand_id": brand_id,
+        "new_url": safe_url,
+        "status": "analyzing",
+    }
+
+
+# ---------------------------------------------------------------------------
+# RUTAS: Análisis de sitio web
 # ---------------------------------------------------------------------------
 @app.post("/api/brands/{brand_id}/analyze-website")
 async def analyze_website(brand_id: str, request: WebsiteAnalyzeRequest,
@@ -1512,6 +1586,24 @@ async def _analyze_website_task(brand_id: str, url: str):
         log_reasoning("brand_analyzer", "Extraer contenido", f"Iniciando scraping de {url}")
         website_text = _scrape_website(url)
         log_reasoning("brand_analyzer", "Contenido extraído", f"{len(website_text)} caracteres obtenidos")
+
+        # Verificar si el scraping falló (error HTTP, 404, conexión rechazada, etc.)
+        if website_text.startswith("[Error al acceder al sitio:"):
+            error_detail = website_text.replace("[Error al acceder al sitio: ", "").rstrip("]")
+            _update_analyze_progress(brand_id, 0, TOTAL_STEPS, "Error al acceder al sitio web", error_detail)
+            brand = load_json(brand_file)
+            brand["onboarding_status"] = "website_error"
+            brand["website_error"] = error_detail
+            brand["website_locked"] = False  # Permitir editar la URL
+            brand["updated_at"] = datetime.utcnow().isoformat()
+            save_json(brand_file, brand)
+            log_audit("brand_analyzer", "analyze_website",
+                      {"brand_id": brand_id, "url": url},
+                      "", get_active_model(), 0, False, f"Error HTTP: {error_detail}")
+            logger.warning(f"[analyze] Sitio web inaccesible para marca {brand_id}: {error_detail}")
+            with _analyze_progress_lock:
+                _analyze_progress.pop(brand_id, None)
+            return  # Salir temprano, el usuario debe corregir la URL
 
         # Paso 3: Analizando meta tags y datos estructurados
         _update_analyze_progress(brand_id, 3, TOTAL_STEPS, "Analizando meta tags y datos estructurados", "Extrayendo Open Graph, JSON-LD, Twitter Cards...")
@@ -1578,6 +1670,8 @@ Responde en formato JSON con los campos del ADN empresarial."""
         brand = load_json(brand_file)
         brand["onboarding_status"] = "interviewing"
         brand["adn_draft_id"] = adn_id
+        brand["website_locked"] = True  # Bloquear edición de URL tras análisis exitoso
+        brand.pop("website_error", None)  # Limpiar error previo si existía
         brand["updated_at"] = datetime.utcnow().isoformat()
         save_json(brand_file, brand)
 
