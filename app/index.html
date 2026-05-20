@@ -3499,41 +3499,28 @@ function renderPubEditor(pub) {
   html += '<div style="background:#FFFFFF;border:1px solid rgba(13,61,166,0.2);border-radius:10px;padding:12px">';
   html += '<div style="font-size:12px;font-weight:700;color:var(--ccs-azul);margin-bottom:8px">🖼️ Imagen del post</div>';
 
-  // Estado del proveedor de imagen
-  html += '<div id="imageProviderStatus" style="font-size:10px;color:var(--text-muted);margin-bottom:8px;min-height:16px">';
-  html += '<span class="loading-spinner" style="width:8px;height:8px;margin-right:4px"></span>Verificando disponibilidad...</div>';
-
-  // Selector de modelo de imagen
-  html += '<div style="margin-bottom:8px">';
-  html += '<label style="font-size:11px;font-weight:600;color:var(--ccs-azul)">Modelo de imagen</label>';
-  html += '<select id="editImageModel" style="font-size:12px" onchange="_onImageModelChange(this.value)">';
-  // ── Modelos del motor embebido (Diffusers/LCM) — funcionan en Windows, macOS y Linux ──
-  html += '<optgroup label="🤖 Motor IA Embebido (Windows/macOS/Linux)">';
-  html += '<option value="diffusers:SimianLuo/LCM_Dreamshaper_v7">⭐ LCM Dreamshaper v7 — rápido, 2-4 pasos (recomendado)</option>';
-  html += '<option value="diffusers:stabilityai/sd-turbo">SD Turbo — ultra-rápido, 1 paso, fotorrealista</option>';
-  html += '<option value="diffusers:stabilityai/sdxl-turbo">SDXL Turbo — alta calidad, más lento en CPU</option>';
-  html += '</optgroup>';
-  // ── Modelos Ollama — solo macOS/Linux ──
-  html += '<optgroup label="🦎 Ollama (solo macOS/Linux)">';
-  html += '<option value="ollama:x/z-image-turbo">z-image-turbo — Ollama</option>';
-  html += '<option value="ollama:x/flux2-klein">flux2-klein — Ollama</option>';
-  html += '</optgroup>';
-  html += '</select>';
+  // Zona de imagen con soporte para pegar (paste)
+  html += '<div id="imageDropZone" style="border:2px dashed rgba(13,61,166,0.3);border-radius:8px;padding:16px;text-align:center;margin-bottom:10px;cursor:pointer;min-height:80px;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:all 0.2s" tabindex="0">';
+  if (pub.generated_image_url) {
+    html += '<img src="' + escapeHtml(pub.generated_image_url) + '" style="max-width:100%;max-height:200px;border-radius:6px" />';
+    html += '<div style="font-size:10px;color:var(--text-muted);margin-top:6px">Pega (Ctrl+V) o arrastra una nueva imagen para reemplazar</div>';
+  } else {
+    html += '<div style="font-size:24px;margin-bottom:4px">📋</div>';
+    html += '<div style="font-size:11px;color:var(--text-muted)">Pega una imagen (Ctrl+V), arr\u00e1strala aqu\u00ed, o usa los botones de abajo</div>';
+  }
   html += '</div>';
 
-  // Prompt de imagen visible y editable aquí también
+  // Prompt de imagen visible y editable
   html += '<div style="margin-bottom:10px">';
   html += '<label style="font-size:11px;color:var(--text-muted)">Prompt de imagen (editable)</label>';
-  html += '<textarea id="editPubImagePromptInline" style="min-height:60px;font-size:12px" placeholder="Describe la imagen que quieres generar...">' + escapeHtml(pub.image_prompt || '') + '</textarea>';
-  html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Este prompt también se actualiza en el campo &quot;Prompt de imagen&quot; de arriba.</div>';
+  html += '<textarea id="editPubImagePromptInline" style="min-height:60px;font-size:12px" placeholder="Describe la imagen que quieres para usar en herramientas externas...">' + escapeHtml(pub.image_prompt || '') + '</textarea>';
+  html += '<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Este prompt tambi\u00e9n se actualiza en el campo &quot;Prompt de imagen&quot; de arriba.</div>';
   html += '</div>';
 
-  // Botones de mejora de prompt con IA
+  // Bot\u00f3n de prompt para herramienta externa
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">';
-  html += '<button class="btn btn-sm" id="btnEnhancePrompt" onclick="enhanceImagePromptWithAI()" style="flex:1;min-width:140px;background:linear-gradient(135deg,var(--ccs-azul-oscuro),var(--ccs-azul));color:#fff;border:none" title="Mejora el prompt actual con IA para obtener mejores resultados">';
-  html += '✨ Mejorar prompt con IA</button>';
   html += '<button class="btn btn-sm" id="btnExternalPrompt" onclick="generateExternalPrompt()" style="flex:1;min-width:140px;background:linear-gradient(135deg,var(--ccs-verde),var(--ccs-verde-brillante));color:#fff;border:none" title="Genera un prompt optimizado para Nano Banana, Midjourney, DALL-E u otros generadores externos">';
-  html += '🌐 Prompt para herramienta externa</button>';
+  html += '🌐 Generar prompt para herramienta externa</button>';
   html += '</div>';
 
   // Panel resultado prompt externo (oculto por defecto)
@@ -3545,15 +3532,13 @@ function renderPubEditor(pub) {
   html += '<button class="btn btn-sm" onclick="document.getElementById(\'externalPromptPanel\').style.display=\'none\'" style="font-size:10px;padding:2px 8px">✕</button>';
   html += '</div></div>';
   html += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">Compatible con: Nano Banana, Midjourney, DALL-E 3, Stable Diffusion, Adobe Firefly</div>';
-  html += '<textarea id="externalPromptText" style="min-height:80px;font-size:11px;background:#fff;border:1px solid rgba(61,174,43,0.3)" readonly placeholder="El prompt generado aparecerá aquí..."></textarea>';
+  html += '<textarea id="externalPromptText" style="min-height:80px;font-size:11px;background:#fff;border:1px solid rgba(61,174,43,0.3)" readonly placeholder="El prompt generado aparecer\u00e1 aqu\u00ed..."></textarea>';
   html += '</div>';
 
-  // Botones de imagen
+  // Botones de imagen: solo cargar desde disco
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  html += '<button class="btn btn-sm" id="btnGenerateImage" onclick="generateImageWithAI(\'' + pub.id + '\')" style="flex:1;background:#7c3aed;color:#fff;border:none;min-width:140px">';
-  html += '🖼️ Generar imagen con IA</button>';
-  html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;flex:1;min-width:140px;text-align:center" title="Cargar imagen desde tu computadora">';
-  html += '📂 Cargar desde disco';
+  html += '<label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0;flex:1;min-width:140px;text-align:center" title="Cargar imagen desde tu computadora">';
+  html += '📂 Cargar imagen desde disco';
   html += '<input type="file" id="uploadImageInput" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml" style="display:none" onchange="uploadImageManually(\'' + pub.id + '\', \'' + (state.activeCampaign ? state.activeCampaign.id : '') + '\')" />';
   html += '</label>';
   html += '</div>';
@@ -3562,10 +3547,9 @@ function renderPubEditor(pub) {
   html += '</div>'; // fin sección generación
   // ── fin sección generación ──
 
-  // Cargar modelos de texto y estado de imagen en background
+  // Cargar modelos de texto en background e inicializar zona de imagen
   setTimeout(function() {
     _loadTextModels();
-    _loadImageProviderStatus();
     // Sincronizar prompt inline con el campo principal
     var inlinePrompt = document.getElementById('editPubImagePromptInline');
     var mainPrompt = document.getElementById('editPubImagePrompt');
@@ -3573,6 +3557,8 @@ function renderPubEditor(pub) {
       inlinePrompt.addEventListener('input', function() { mainPrompt.value = inlinePrompt.value; });
       mainPrompt.addEventListener('input', function() { inlinePrompt.value = mainPrompt.value; });
     }
+    // Inicializar zona de paste/drop para imagen
+    _initImageDropZone(pub.id, state.activeCampaign ? state.activeCampaign.id : '');
   }, 100);
 
   html += '<div class="form-group"><label>Estado de publicación</label>';
@@ -3682,131 +3668,21 @@ function generateTextWithAI(pubId) {
 }
 
 /**
- * Genera solo la IMAGEN del post usando el motor de imagen seleccionado.
- * Llamado desde el botón del panel de imagen.
+ * [DEPRECATED] Generación local de imágenes removida.
+ * Se mantiene como stub por compatibilidad con código legacy.
  */
 function generateImageWithAI(pubId) {
-  var rawModel = (document.getElementById('editImageModel') || {}).value || 'diffusers:SimianLuo/LCM_Dreamshaper_v7';
-  // Leer prompt desde el campo inline del panel de imagen
-  var promptEl = document.getElementById('editPubImagePromptInline') || document.getElementById('editPubImagePrompt');
-  var imagePrompt = promptEl ? promptEl.value.trim() : '';
-
-  if (!imagePrompt) {
-    showNotification('Escribe un prompt de imagen antes de generar', 'error');
-    return;
-  }
-
-  var btn = document.getElementById('btnGenerateImage');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Generando...'; }
-
-  // Parsear el valor del combo: formato "tipo:modelo_id"
-  // Ejemplos: "diffusers:SimianLuo/LCM_Dreamshaper_v7", "ollama:x/z-image-turbo"
-  var modelType = 'diffusers';
-  var modelId = 'SimianLuo/LCM_Dreamshaper_v7';
-  var colonIdx = rawModel.indexOf(':');
-  if (colonIdx !== -1) {
-    modelType = rawModel.substring(0, colonIdx);
-    modelId = rawModel.substring(colonIdx + 1);
-  }
-
-  // Determinar pasos recomendados según el modelo
-  var stepsMap = {
-    'SimianLuo/LCM_Dreamshaper_v7': 4,
-    'stabilityai/sd-turbo': 1,
-    'stabilityai/sdxl-turbo': 1,
-  };
-  var diffusionSteps = stepsMap[modelId] || 4;
-
-  // Construir payload según el tipo de modelo
-  var payload = {
-    image_prompt: imagePrompt,
-  };
-
-  if (modelType === 'diffusers') {
-    // Motor embebido: enviar diffusion_model y diffusion_steps
-    payload.diffusion_model = modelId;
-    payload.diffusion_steps = diffusionSteps;
-    payload.model = 'embedded';  // Indica al backend que use el motor embebido
-    showNotification('🤖 Generando con ' + modelId.split('/').pop() + '... (puede tardar 1-5 min la primera vez)', 'info');
-  } else {
-    // Ollama: enviar model (nombre del modelo Ollama)
-    payload.model = modelId;
-    showNotification('🦎 Generando con Ollama: ' + modelId + '...', 'info');
-  }
-
-  fetch(apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/generate-image'), {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json; charset=utf-8'},
-    body: JSON.stringify(payload),
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '🖼️ Generar imagen con IA'; }
-      if (data.image_url) {
-        var container = document.getElementById('pubPreviewImageContainer');
-        if (container) {
-          container.innerHTML = safeHTML('<img src="' + escapeHtml(data.image_url) + '?t=' + Date.now() + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />');
-        }
-        if (data.warning) {
-          showNotification('⚠️ ' + data.warning, 'info');
-        } else {
-          var methodLabel = data.generation_method || 'IA';
-          showNotification('✅ Imagen generada con ' + methodLabel, 'success');
-        }
-      } else {
-        showNotification('Error: ' + (data.detail || data.error || 'No se pudo generar la imagen'), 'error');
-      }
-    })
-    .catch(function(e) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '🖼️ Generar imagen con IA'; }
-      showNotification('Error al generar imagen: ' + e.message, 'error');
-    });
+  showNotification('La generación local de imágenes ha sido desactivada. Usa el prompt para herramienta externa y carga la imagen desde disco.', 'info');
 }
+
+/* Funciones de generación local de imágenes removidas - se usa herramienta externa + carga manual */
 
 /**
  * Mejora el prompt de imagen actual usando Ollama para obtener mejores resultados.
  * Toma el prompt actual, lo enriquece con detalles de estilo, iluminación, composición, etc.
  */
 function enhanceImagePromptWithAI() {
-  var promptEl = document.getElementById('editPubImagePromptInline') || document.getElementById('editPubImagePrompt');
-  var currentPrompt = promptEl ? promptEl.value.trim() : '';
-
-  if (!currentPrompt) {
-    showNotification('Escribe un prompt base antes de mejorarlo', 'error');
-    return;
-  }
-
-  var btn = document.getElementById('btnEnhancePrompt');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Mejorando...'; }
-
-  // Obtener el canal de la publicación actual
-  var pubChannel = '';
-  var editorContent = document.getElementById('pubEditorContent');
-  if (editorContent) pubChannel = editorContent.getAttribute('data-pub-channel') || '';
-
-  fetch(apiUrl('/image-prompt/enhance'), {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json; charset=utf-8'},
-    body: JSON.stringify({ prompt: currentPrompt, channel: pubChannel }),
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '✨ Mejorar prompt con IA'; }
-      if (data.enhanced_prompt) {
-        // Actualizar ambos campos de prompt (inline y principal)
-        var inlineEl = document.getElementById('editPubImagePromptInline');
-        var mainEl = document.getElementById('editPubImagePrompt');
-        if (inlineEl) inlineEl.value = data.enhanced_prompt;
-        if (mainEl) mainEl.value = data.enhanced_prompt;
-        showNotification('✨ Prompt mejorado con IA', 'success');
-      } else {
-        showNotification('Error al mejorar prompt: ' + (data.detail || 'Sin respuesta'), 'error');
-      }
-    })
-    .catch(function(e) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '✨ Mejorar prompt con IA'; }
-      showNotification('Error: ' + e.message, 'error');
-    });
+  showNotification('La mejora de prompts con IA local ha sido desactivada. Usa "Generar prompt para herramienta externa" en su lugar.', 'info');
 }
 
 /**
@@ -3883,156 +3759,38 @@ function copyExternalPrompt() {
     });
 }
 
-// generateWithAI: compatibilidad con código anterior (dispatcher)
+// generateWithAI: compatibilidad con código anterior (solo texto)
 function generateWithAI(pubId) {
-  var targetEl = document.getElementById('editGenTarget');
-  var imageModelEl = document.getElementById('editImageModel');
   var textModelEl = document.getElementById('editTextModel');
   var instrEl = document.getElementById('editGenInstruction');
   var langEl = document.getElementById('editGenLanguage');
   var btn = document.getElementById('btnGenerate');
 
-  var target = targetEl ? targetEl.value : 'text';
-  var rawImageModel = imageModelEl ? imageModelEl.value : 'diffusers:SimianLuo/LCM_Dreamshaper_v7';
   var textModel = textModelEl ? textModelEl.value : (window._activeTextModel || '');
   var instruction = instrEl ? instrEl.value.trim() : '';
   var language = langEl ? langEl.value : 'es';
 
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Generando...'; }
 
-  if (target === 'image') {
-    // Generar imagen
-    var imagePrompt = document.getElementById('editPubImagePrompt');
-    var promptText = imagePrompt ? imagePrompt.value.trim() : '';
-    if (!promptText) {
-      showNotification('Escribe un prompt de imagen antes de generar', 'error');
+  var modelLabel = textModel ? textModel : 'modelo activo';
+  showNotification('💬 Regenerando texto con ' + modelLabel + '...', 'info');
+  var url2 = apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/regenerate');
+  var params = [];
+  if (instruction) params.push('instruction=' + encodeURIComponent(instruction));
+  if (language) params.push('language=' + encodeURIComponent(language));
+  if (textModel) params.push('model=' + encodeURIComponent(textModel));
+  if (params.length > 0) url2 += '?' + params.join('&');
+  fetch(url2, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(pub) {
       if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
-      return;
-    }
-
-    // Parsear el valor del combo: formato "tipo:modelo_id"
-    var imgModelType = 'diffusers';
-    var imgModelId = 'SimianLuo/LCM_Dreamshaper_v7';
-    var imgColonIdx = rawImageModel.indexOf(':');
-    if (imgColonIdx !== -1) {
-      imgModelType = rawImageModel.substring(0, imgColonIdx);
-      imgModelId = rawImageModel.substring(imgColonIdx + 1);
-    }
-    var imgStepsMap = {
-      'SimianLuo/LCM_Dreamshaper_v7': 4,
-      'stabilityai/sd-turbo': 1,
-      'stabilityai/sdxl-turbo': 1,
-    };
-    var imgSteps = imgStepsMap[imgModelId] || 4;
-    var imgPayload = {image_prompt: promptText, instruction: instruction};
-    if (imgModelType === 'diffusers') {
-      imgPayload.diffusion_model = imgModelId;
-      imgPayload.diffusion_steps = imgSteps;
-      imgPayload.model = 'embedded';
-    } else {
-      imgPayload.model = imgModelId;
-    }
-
-    showNotification('Generando imagen con ' + imgModelId.split('/').pop() + '... (puede tardar 1-2 min si se descarga el modelo)', 'info');
-    var url = apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/generate-image');
-    fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(imgPayload),
+      showNotification('Texto regenerado correctamente', 'success');
+      renderPubEditor(pub);
     })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
-        if (data.success && (data.image_b64 || data.image_url)) {
-          // Determinar MIME type según el método de generación
-          var isSvg = (data.generation_method === 'placeholder_svg') ||
-                      (data.image_url && data.image_url.indexOf('.svg') !== -1);
-          var mimeType = isSvg ? 'image/svg+xml' : 'image/png';
-
-          // Preferir base64 directo (evita problemas de URL relativa/absoluta)
-          var displaySrc;
-          if (data.image_b64) {
-            displaySrc = 'data:' + mimeType + ';base64,' + data.image_b64;
-          } else {
-            var ts = Date.now();
-            var imgPath = data.image_url.split('?')[0];
-            displaySrc = window.location.origin + imgPath + '?t=' + ts;
-          }
-
-          // Actualizar preview dentro del modal
-          var container = document.getElementById('pubPreviewImageContainer');
-          if (container) {
-            var img = document.createElement('img');
-            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px';
-            img.onerror = function() {
-              container.innerHTML = '<span style="color:#ef4444">Error al cargar imagen</span>';
-            };
-            img.onload = function() {
-              if (isSvg) {
-                // Mostrar aviso de placeholder con opción de subir imagen real
-                var warningBar = document.createElement('div');
-                warningBar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:#fbbf24;font-size:10px;padding:4px 8px;text-align:center;border-radius:0 0 8px 8px';
-                warningBar.innerHTML = '⚠️ Placeholder — Cargá una imagen real desde disco';
-                container.appendChild(warningBar);
-                showNotification('⚠️ ' + (data.warning || 'Placeholder generado. Podés reemplazarlo cargando una imagen desde disco.'), 'warning');
-              } else {
-                showNotification('\u2705 Imagen generada con ' + (data.generation_method || 'IA'), 'success');
-              }
-            };
-            img.src = displaySrc;
-            container.innerHTML = '';
-            container.style.position = 'relative';
-            container.appendChild(img);
-          }
-
-          // Guardar URL en el estado local
-          if (data.image_url && state.activeCampaign) {
-            var pubs = (state.activeCampaign.publications || []);
-            for (var i = 0; i < pubs.length; i++) {
-              if (pubs[i].id === pubId) {
-                pubs[i].generated_image_url = data.image_url.split('?')[0];
-                break;
-              }
-            }
-          }
-
-          // Actualizar miniatura en el calendario
-          var calImg = document.querySelector('[data-pub-id="' + pubId + '"] .pub-cal-image');
-          if (calImg) { calImg.src = displaySrc; }
-
-        } else {
-          var errMsg = data.error || 'No se pudo generar la imagen';
-          showNotification(errMsg, 'error');
-          if (data.debug) { console.warn('Image gen debug:', data.debug); }
-          console.error('Image gen error:', data);
-        }
-      })
-      .catch(function(e) {
-        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
-        showNotification('Error al generar imagen: ' + e.message, 'error');
-      });
-  } else {
-    // Regenerar texto
-    var modelLabel = textModel ? textModel : 'modelo activo';
-    showNotification('💬 Regenerando texto con ' + modelLabel + '...', 'info');
-    var url2 = apiUrl('/campaigns/' + state.activeCampaign.id + '/publications/' + pubId + '/regenerate');
-    var params = [];
-    if (instruction) params.push('instruction=' + encodeURIComponent(instruction));
-    if (language) params.push('language=' + encodeURIComponent(language));
-    if (textModel) params.push('model=' + encodeURIComponent(textModel));
-    if (params.length > 0) url2 += '?' + params.join('&');
-    fetch(url2, {method: 'POST'})
-      .then(function(r) { return r.json(); })
-      .then(function(pub) {
-        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
-        showNotification('Texto regenerado correctamente', 'success');
-        renderPubEditor(pub);
-      })
-      .catch(function(e) {
-        if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
-        showNotification('Error al regenerar: ' + e.message, 'error');
-      });
-  }
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Generar con IA'; }
+      showNotification('Error al regenerar: ' + e.message, 'error');
+    });
 }
 
 function copyPubText() {
@@ -4045,141 +3803,8 @@ function copyPubText() {
 }
 
 // ============================================================
-// IMAGEN: CARGA MANUAL Y ESTADO DE PROVEEDORES
+// IMAGEN: CARGA MANUAL (Paste, Drag & Drop, File Input)
 // ============================================================
-
-/**
- * Carga el estado de los proveedores de imagen y actualiza el panel en el editor.
- * Se llama automáticamente al abrir el editor de publicación.
- */
-function _loadImageProviderStatus() {
-  var el = document.getElementById('imageProviderStatus');
-  if (!el) return;
-
-  fetch(apiUrl('/image-providers/status'))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var effective = data.effective_provider || 'placeholder_svg';
-      var providers = data.providers || {};
-      var icons = {
-        embedded_diffusers: '\uD83E\uDD16',  // 🤖
-        ollama: '\uD83E\uDD99',
-        automatic1111: '\uD83C\uDFA8',
-        comfyui: '\u2728',
-        placeholder_svg: '\uD83D\uDDBC\uFE0F'
-      };
-      var labels = {
-        embedded_diffusers: 'Motor IA Embebido (LCM)',
-        ollama: 'Ollama (macOS/Linux)',
-        automatic1111: 'AUTOMATIC1111',
-        comfyui: 'ComfyUI',
-        placeholder_svg: 'Placeholder SVG'
-      };
-      var colors = {
-        embedded_diffusers: 'var(--ccs-verde)',
-        ollama: '#3b82f6',
-        automatic1111: '#8b5cf6',
-        comfyui: '#a855f7',
-        placeholder_svg: '#f59e0b'
-      };
-
-      var html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
-      html += '<span style="font-weight:700;color:' + (colors[effective] || '#888') + ';font-size:12px">';
-      html += (icons[effective] || '') + ' ' + (labels[effective] || effective) + '</span>';
-
-      // Estado del motor embebido
-      var embeddedInfo = providers.embedded_diffusers || {};
-      var engineState = (embeddedInfo.engine_status || {}).state || 'idle';
-      if (effective === 'embedded_diffusers') {
-        if (engineState === 'ready') {
-          html += '<span style="color:var(--ccs-verde);font-size:10px">✅ Listo</span>';
-        } else if (engineState === 'loading') {
-          var progress = (embeddedInfo.engine_status || {}).progress || 0;
-          var msg = (embeddedInfo.engine_status || {}).message || 'Cargando...';
-          html += '<span style="color:#f59e0b;font-size:10px"><span class="loading-spinner" style="width:10px;height:10px"></span> ' + progress + '% — ' + msg + '</span>';
-          // Polling para actualizar el estado
-          setTimeout(function() { _loadImageProviderStatus(); }, 3000);
-        } else if (engineState === 'idle') {
-          html += '<button onclick="_loadEmbeddedEngine()" class="btn btn-sm" style="font-size:10px;padding:2px 8px;background:var(--ccs-verde);color:white;border:none;border-radius:4px;cursor:pointer">';
-          html += '\u25B6 Cargar motor</button>';
-        } else if (engineState === 'error') {
-          html += '<span style="color:#ef4444;font-size:10px">❌ Error: ' + ((embeddedInfo.engine_status || {}).error || 'desconocido') + '</span>';
-        }
-      }
-
-      // Mostrar modelo activo
-      if (effective === 'embedded_diffusers' && embeddedInfo.model) {
-        var modelShort = embeddedInfo.model.split('/').pop();
-        html += '<span style="color:var(--text-muted);font-size:10px">Modelo: ' + modelShort + '</span>';
-      }
-
-      html += '</div>';
-
-      // Sincronizar el combo principal (editImageModel) con el modelo activo del servidor
-      var mainCombo = document.getElementById('editImageModel');
-      if (mainCombo && effective === 'embedded_diffusers' && embeddedInfo.model) {
-        var expectedValue = 'diffusers:' + embeddedInfo.model;
-        // Solo actualizar si la opción existe en el combo
-        for (var oi = 0; oi < mainCombo.options.length; oi++) {
-          if (mainCombo.options[oi].value === expectedValue) {
-            mainCombo.value = expectedValue;
-            _onImageModelChange(expectedValue);
-            break;
-          }
-        }
-      }
-
-      // Mostrar links de instalación si solo placeholder está disponible
-      if (effective === 'placeholder_svg') {
-        html += '<div style="margin-top:6px;font-size:10px;color:var(--text-muted)">';
-        html += '⚠️ Motor IA no disponible. Instala las dependencias: ';
-        html += '<code style="background:var(--bg-card);padding:1px 4px;border-radius:3px">pip install torch diffusers transformers accelerate</code>';
-        html += '</div>';
-      }
-
-      el.innerHTML = html;
-    })
-    .catch(function() {
-      el.innerHTML = '<span style="color:var(--text-muted)">No se pudo verificar proveedores de imagen</span>';
-    });
-}
-
-/** Inicia la carga del motor de imagen embebido en background. */
-function _loadEmbeddedEngine() {
-  var el = document.getElementById('imageProviderStatus');
-  if (el) el.innerHTML = '<span class="loading-spinner" style="width:10px;height:10px"></span> Iniciando carga del motor de imagen...';
-
-  fetch(apiUrl('/image-engine/load'), {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({})
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      showNotification('🤖 Motor de imagen iniciando... (puede tardar 2-5 min la primera vez)', 'info');
-      // Iniciar polling del estado
-      setTimeout(function() { _loadImageProviderStatus(); }, 3000);
-    })
-    .catch(function(e) {
-      showNotification('Error al iniciar motor: ' + e.message, 'error');
-    });
-}
-
-/** Cambia el modelo de difusión activo. */
-function _changeDiffusionModel(modelId) {
-  fetch(apiUrl('/config'), {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({diffusion_model: modelId})
-  })
-    .then(function(r) { return r.json(); })
-    .then(function() {
-      showNotification('Modelo cambiado a ' + modelId.split('/').pop() + '. Se cargará al generar la próxima imagen.', 'info');
-    })
-    .catch(function(e) {
-      showNotification('Error al cambiar modelo: ' + e.message, 'error');
-    });
-}
 
 /**
  * Carga la lista de modelos de texto disponibles en Ollama y rellena el selector.
@@ -4261,34 +3886,156 @@ function _onTextModelChange(model) {
     });
 }
 
-/** Actualiza el selector de imagen y muestra información contextual según el modelo elegido. */
-function _onImageModelChange(model) {
-  var statusEl = document.getElementById('imageProviderStatus');
-  if (!statusEl) return;
-
-  // Parsear formato "tipo:modelo_id"
-  var modelType = model.indexOf(':') !== -1 ? model.split(':')[0] : 'diffusers';
-  var modelId   = model.indexOf(':') !== -1 ? model.substring(model.indexOf(':') + 1) : model;
-
-  if (modelType === 'diffusers') {
-    var descMap = {
-      'SimianLuo/LCM_Dreamshaper_v7': '🤖 <strong>LCM Dreamshaper v7</strong> — Motor IA Embebido. Funciona en <strong>Windows, macOS y Linux</strong>. Genera en 2-4 pasos (~2-8 min en CPU). La primera vez descarga ~2 GB.',
-      'stabilityai/sd-turbo': '🤖 <strong>SD Turbo</strong> — Motor IA Embebido. Ultra-rápido, 1 paso, imágenes fotorrealistas. Descarga ~1.9 GB la primera vez.',
-      'stabilityai/sdxl-turbo': '🤖 <strong>SDXL Turbo</strong> — Motor IA Embebido. Alta calidad, más lento en CPU. Requiere ~8 GB RAM. Descarga ~6.9 GB la primera vez.',
-    };
-    statusEl.innerHTML = descMap[modelId] || '🤖 <strong>Motor IA Embebido</strong> — ' + modelId;
-  } else if (modelType === 'ollama') {
-    statusEl.innerHTML = '🦎 <strong>Ollama</strong> — Generación de imágenes vía Ollama. Disponible en <strong>macOS y Linux</strong>. En Windows puede no funcionar. Modelo: <code>' + modelId + '</code>';
-  } else {
-    statusEl.innerHTML = '🖼️ Modelo: ' + model;
-  }
-}
-
 /**
  * Sube una imagen desde el disco del usuario y la asocia a la publicación.
  * @param {string} pubId - ID de la publicación
  * @param {string} campaignId - ID de la campaña
  */
+function _initImageDropZone(pubId, campaignId) {
+  var zone = document.getElementById('imageDropZone');
+  if (!zone) return;
+
+  // Drag & Drop
+  zone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    zone.style.borderColor = 'var(--ccs-azul)';
+    zone.style.background = 'rgba(13,61,166,0.05)';
+  });
+  zone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    zone.style.borderColor = 'rgba(13,61,166,0.3)';
+    zone.style.background = 'transparent';
+  });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    zone.style.borderColor = 'rgba(13,61,166,0.3)';
+    zone.style.background = 'transparent';
+    var files = e.dataTransfer.files;
+    if (files && files[0] && files[0].type.startsWith('image/')) {
+      _uploadImageFile(files[0], pubId, campaignId);
+    } else {
+      showNotification('Solo se permiten archivos de imagen', 'error');
+    }
+  });
+
+  // Click para abrir selector de archivo
+  zone.addEventListener('click', function() {
+    var input = document.getElementById('uploadImageInput');
+    if (input) input.click();
+  });
+
+  // Paste (Ctrl+V) - escuchar en la zona y en el documento cuando la zona tiene foco
+  zone.addEventListener('paste', function(e) {
+    _handleImagePaste(e, pubId, campaignId);
+  });
+
+  // Tambi\u00e9n escuchar paste a nivel de documento para cuando el usuario pega sin foco espec\u00edfico
+  document.addEventListener('paste', function(e) {
+    // Solo procesar si el editor de publicaci\u00f3n est\u00e1 visible
+    var editorContent = document.getElementById('pubEditorContent');
+    if (!editorContent || editorContent.style.display === 'none') return;
+    // No interceptar si el foco est\u00e1 en un textarea o input
+    var active = document.activeElement;
+    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) return;
+    _handleImagePaste(e, pubId, campaignId);
+  });
+}
+
+function _handleImagePaste(e, pubId, campaignId) {
+  var items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      e.preventDefault();
+      var file = items[i].getAsFile();
+      if (file) {
+        _uploadImageFile(file, pubId, campaignId);
+      }
+      return;
+    }
+  }
+}
+
+function _uploadImageFile(file, pubId, campaignId) {
+  var maxSize = 10 * 1024 * 1024; // 10 MB
+  if (file.size > maxSize) {
+    showNotification('El archivo es demasiado grande. M\u00e1ximo 10 MB.', 'error');
+    return;
+  }
+
+  // Mostrar preview inmediato
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var zone = document.getElementById('imageDropZone');
+    if (zone) {
+      zone.innerHTML = '<img src="' + e.target.result + '" style="max-width:100%;max-height:200px;border-radius:6px" />' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:6px">Subiendo imagen...</div>';
+    }
+    var container = document.getElementById('pubPreviewImageContainer');
+    if (container) {
+      container.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />';
+    }
+  };
+  reader.readAsDataURL(file);
+
+  // Subir al servidor
+  var formData = new FormData();
+  formData.append('file', file);
+
+  var uploadUrl = apiUrl('/campaigns/' + campaignId + '/publications/' + pubId + '/upload-image');
+  showNotification('Subiendo imagen...', 'info');
+
+  fetch(uploadUrl, { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        showNotification('\u2705 Imagen cargada correctamente', 'success');
+
+        // Actualizar estado local
+        if (state.activeCampaign) {
+          var pubs = state.activeCampaign.publications || [];
+          for (var i = 0; i < pubs.length; i++) {
+            if (pubs[i].id === pubId) {
+              pubs[i].generated_image_url = data.image_url.split('?')[0];
+              break;
+            }
+          }
+        }
+
+        // Actualizar zona de drop
+        var zone = document.getElementById('imageDropZone');
+        if (zone) {
+          var ts = Date.now();
+          var imgPath = data.image_url.split('?')[0];
+          var src = window.location.origin + imgPath + '?t=' + ts;
+          zone.innerHTML = '<img src="' + src + '" style="max-width:100%;max-height:200px;border-radius:6px" />' +
+            '<div style="font-size:10px;color:var(--text-muted);margin-top:6px">Pega (Ctrl+V) o arrastra una nueva imagen para reemplazar</div>';
+        }
+
+        // Actualizar preview principal
+        var container = document.getElementById('pubPreviewImageContainer');
+        if (container) {
+          var ts2 = Date.now();
+          var imgPath2 = data.image_url.split('?')[0];
+          var src2 = window.location.origin + imgPath2 + '?t=' + ts2;
+          container.innerHTML = '<img src="' + src2 + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />';
+        }
+
+        // Actualizar miniatura en calendario
+        var calImg = document.querySelector('[data-pub-id="' + pubId + '"] .pub-cal-image');
+        if (calImg && data.image_url) {
+          calImg.src = window.location.origin + data.image_url.split('?')[0] + '?t=' + Date.now();
+        }
+      } else {
+        showNotification('Error al subir imagen: ' + (data.detail || data.error || 'Error desconocido'), 'error');
+      }
+    })
+    .catch(function(e) {
+      showNotification('Error al subir imagen: ' + e.message, 'error');
+    });
+}
+
 function uploadImageManually(pubId, campaignId) {
   var input = document.getElementById('uploadImageInput');
   if (!input || !input.files || !input.files[0]) return;
