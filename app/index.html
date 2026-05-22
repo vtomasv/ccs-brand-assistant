@@ -3682,7 +3682,13 @@ function generateImageWithAI(pubId) {
  * Toma el prompt actual, lo enriquece con detalles de estilo, iluminación, composición, etc.
  */
 function enhanceImagePromptWithAI() {
+  // Obtener el canal de la publicación actual
+  var pubChannel = '';
+  var editorContent = document.getElementById('pubEditorContent');
+  if (editorContent) pubChannel = editorContent.getAttribute('data-pub-channel') || '';
+  // Función desactivada - redirigir a prompt externo
   showNotification('La mejora de prompts con IA local ha sido desactivada. Usa "Generar prompt para herramienta externa" en su lugar.', 'info');
+  // Nota: cuando se reactive, enviar channel: pubChannel en el body del fetch
 }
 
 /**

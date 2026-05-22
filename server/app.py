@@ -2067,11 +2067,41 @@ def approve_adn(brand_id: str):
 # ---------------------------------------------------------------------------
 # RUTAS: Entrevista guiada por agente
 # ---------------------------------------------------------------------------
+# Importar módulos de gestión de contexto y resiliencia
+try:
+    from context_manager import (
+        estimate_tokens,
+        build_context_for_interview,
+        get_session_state,
+        reset_session_state,
+        generate_session_summary,
+        calculate_audit_metrics,
+        get_context_limit,
+        compact_history,
+        MAX_CONSECUTIVE_ERRORS,
+    )
+    from llm_resilience import (
+        call_ollama_with_retry,
+        is_context_exhaustion_error,
+    )
+    CONTEXT_MANAGER_AVAILABLE = True
+    logger.info("Módulos de gestión de contexto y resiliencia cargados correctamente")
+except ImportError as _cm_err:
+    CONTEXT_MANAGER_AVAILABLE = False
+    logger.warning(f"Módulos de contexto no disponibles: {_cm_err}. Usando modo legacy.")
+
+
 @app.post("/api/brands/{brand_id}/interview")
 async def interview_agent(brand_id: str, msg: InterviewMessage):
     """
     Conduce la entrevista de descubrimiento de marca con el agente entrevistador.
-    Mantiene historial de sesión y actualiza el ADN incrementalmente.
+    
+    Mejoras v2:
+    - Gestión robusta del contexto LLM (estimación de tokens, compactación)
+    - Reintentos con backoff exponencial ante errores
+    - Reinicio automático de sesión cuando se acumulan errores
+    - Rotación de sesión cuando el contexto se agota
+    - Métricas detalladas de tokens y costos
     """
     import time
     start = time.time()
@@ -2089,14 +2119,11 @@ async def interview_agent(brand_id: str, msg: InterviewMessage):
 
     # Cargar ADN borrador como contexto
     adn_draft = load_json(DATA_DIR / "brands" / brand_id / "adn_draft.json", {})
-    adn_context = json.dumps(adn_draft.get("fields", {}), ensure_ascii=False)[:2000]
+    adn_fields = adn_draft.get("fields", {})
+    adn_context = json.dumps(adn_fields, ensure_ascii=False)[:2000]
 
     # Construir historial de conversación
     history = session.get("messages", [])
-    history_text = "\n".join([
-        f"{'Usuario' if m['role'] == 'user' else 'Agente'}: {m['content']}"
-        for m in history[-10:]  # últimos 10 mensajes
-    ])
 
     model = get_active_model()
     system_prompt = get_system_prompt("brand_interviewer")
@@ -2106,13 +2133,78 @@ async def interview_agent(brand_id: str, msg: InterviewMessage):
     # Sanitizar el mensaje del usuario contra inyección de prompts
     safe_user_msg = _sanitize_user_input(msg.message)
 
-    log_reasoning("brand_interviewer", "Evaluar contexto",
-                  f"ADN completitud: {len([v for v in adn_draft.get('fields', {}).values() if v])} campos, "
-                  f"Historial: {len(history)} mensajes")
-    log_reasoning("brand_interviewer", "Procesar respuesta",
-                  f"Mensaje del usuario: {safe_user_msg[:80]}...")
-
-    user_message = f"""CONTEXTO DEL ADN ACTUAL:
+    # --- Gestión de contexto mejorada ---
+    was_compacted = False
+    context_metrics = {}
+    
+    if CONTEXT_MANAGER_AVAILABLE:
+        # Obtener estado de la sesión
+        session_state = get_session_state(session_id, brand_id)
+        
+        # Verificar si necesitamos reiniciar la sesión por errores acumulados
+        if session_state.needs_reset():
+            logger.warning(
+                f"[Entrevista] Sesión {session_id} tiene {session_state.consecutive_errors} "
+                f"errores consecutivos. Reiniciando contexto."
+            )
+            # Generar resumen de la sesión anterior
+            session_summary = generate_session_summary(history, adn_fields)
+            
+            # Reiniciar estado
+            session_state = reset_session_state(session_id, brand_id)
+            
+            # Crear nueva sesión con resumen
+            new_session_id = str(uuid.uuid4())
+            session_id = new_session_id
+            session_file = DATA_DIR / "sessions" / f"{brand_id}_{session_id}.json"
+            history = []
+            if session_summary:
+                history.append({
+                    "role": "system",
+                    "content": session_summary,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "_type": "session_reset_summary",
+                })
+            session = {
+                "id": session_id, "brand_id": brand_id,
+                "messages": history,
+                "created_at": datetime.utcnow().isoformat(),
+                "_reset_from": msg.session_id,
+                "_reset_reason": "consecutive_errors",
+            }
+            logger.info(f"[Entrevista] Nueva sesión creada: {session_id}")
+        
+        # Construir contexto optimizado con control de tokens
+        user_message, history_used, was_compacted = build_context_for_interview(
+            system_prompt=system_prompt,
+            adn_context=adn_context,
+            history=history,
+            user_message=safe_user_msg,
+            model=model,
+        )
+        
+        if was_compacted:
+            session_state.record_compaction()
+            logger.info(
+                f"[Entrevista] Historial compactado para sesión {session_id} "
+                f"(compactaciones totales: {session_state.compactions_count})"
+            )
+        
+        # Estimar tokens antes de la llamada
+        estimated_input_tokens = estimate_tokens(system_prompt + user_message)
+        context_limit = get_context_limit(model)
+        
+        log_reasoning("brand_interviewer", "Gestión de contexto",
+                      f"Tokens estimados: {estimated_input_tokens}/{context_limit} "
+                      f"({estimated_input_tokens*100//context_limit}% del límite). "
+                      f"Historial: {len(history)} msgs. Compactado: {was_compacted}")
+    else:
+        # Modo legacy (sin gestión de contexto)
+        history_text = "\n".join([
+            f"{'Usuario' if m['role'] == 'user' else 'Agente'}: {m['content']}"
+            for m in history[-10:]
+        ])
+        user_message = f"""CONTEXTO DEL ADN ACTUAL:
 {adn_context}
 
 HISTORIAL DE CONVERSACIÓN:
@@ -2120,14 +2212,86 @@ HISTORIAL DE CONVERSACIÓN:
 
 MENSAJE DEL USUARIO: {safe_user_msg}"""
 
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        _thread_pool, lambda: call_ollama(
-            model, system_prompt, user_message,
-            temperature=0.7,
-            timeout=get_ollama_timeout("default"),
+    log_reasoning("brand_interviewer", "Evaluar contexto",
+                  f"ADN completitud: {len([v for v in adn_fields.values() if v])} campos, "
+                  f"Historial: {len(history)} mensajes")
+    log_reasoning("brand_interviewer", "Procesar respuesta",
+                  f"Mensaje del usuario: {safe_user_msg[:80]}...")
+
+    # --- Llamada al LLM con reintentos ---
+    response = None
+    call_metadata = {}
+    
+    if CONTEXT_MANAGER_AVAILABLE:
+        try:
+            response, call_metadata = await call_ollama_with_retry(
+                call_fn=call_ollama,
+                model=model,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.7,
+                timeout=get_ollama_timeout("default"),
+                session_id=session_id,
+                brand_id=brand_id,
+                thread_pool=_thread_pool,
+            )
+            
+            # Calcular métricas de auditoría
+            latency = int((time.time() - start) * 1000)
+            context_metrics = calculate_audit_metrics(
+                system_prompt, user_message, response or "", model, latency
+            )
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Si la llamada con reintentos falla completamente
+            latency = int((time.time() - start) * 1000)
+            error_str = str(e)
+            
+            # Registrar error
+            if session_state:
+                session_state.record_error(error_str)
+            
+            log_audit("brand_interviewer", "interview",
+                      {"brand_id": brand_id, "session_id": session_id, "error": error_str[:200]},
+                      "", model, latency, False, error_str[:500])
+            
+            # Si es error de contexto, intentar con mensaje reducido
+            if is_context_exhaustion_error(error_str):
+                logger.warning("[Entrevista] Agotamiento de contexto detectado. Reintentando con contexto mínimo.")
+                minimal_message = f"MENSAJE DEL USUARIO: {safe_user_msg}"
+                try:
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        _thread_pool, lambda: call_ollama(
+                            model, system_prompt, minimal_message,
+                            temperature=0.7,
+                            timeout=get_ollama_timeout("default"),
+                        )
+                    )
+                except Exception:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="El modelo de IA no pudo procesar la solicitud. "
+                               "Intenta con un mensaje más corto o reinicia la sesión."
+                    )
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Error al comunicarse con el modelo de IA: {error_str[:200]}"
+                )
+    else:
+        # Modo legacy sin reintentos
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            _thread_pool, lambda: call_ollama(
+                model, system_prompt, user_message,
+                temperature=0.7,
+                timeout=get_ollama_timeout("default"),
+            )
         )
-    )
+    
     latency = int((time.time() - start) * 1000)
 
     # Guardar mensajes en sesión
@@ -2135,16 +2299,33 @@ MENSAJE DEL USUARIO: {safe_user_msg}"""
     history.append({"role": "assistant", "content": response, "timestamp": datetime.utcnow().isoformat()})
     session["messages"] = history
     session["updated_at"] = datetime.utcnow().isoformat()
+    
+    # Guardar métricas de contexto en la sesión
+    if context_metrics:
+        session["last_context_metrics"] = context_metrics
+        session["total_tokens_used"] = session.get("total_tokens_used", 0) + context_metrics.get("total_tokens", 0)
+    
     save_json(session_file, session)
 
     log_audit("brand_interviewer", "interview",
-              {"brand_id": brand_id, "session_id": session_id},
+              {"brand_id": brand_id, "session_id": session_id,
+               "tokens_estimated": context_metrics.get("total_tokens", 0),
+               "context_usage_pct": context_metrics.get("context_usage_pct", 0),
+               "was_compacted": was_compacted,
+               "attempts": call_metadata.get("attempts", 1)},
               response, model, latency, True)
 
     return {
         "session_id": session_id,
         "response": response,
         "message_count": len(history),
+        "context_metrics": {
+            "tokens_used": context_metrics.get("total_tokens", 0),
+            "context_limit": context_metrics.get("context_limit", 0),
+            "context_usage_pct": context_metrics.get("context_usage_pct", 0),
+            "was_compacted": was_compacted,
+            "attempts": call_metadata.get("attempts", 1),
+        } if context_metrics else None,
     }
 
 
@@ -2332,28 +2513,43 @@ async def finish_interview(brand_id: str, session_id: Optional[str] = None):
 
 
 def _get_default_interviewer_prompt() -> str:
-    return """Eres un consultor experto en marketing y branding con 20 años de experiencia.
-Tu rol es conducir una entrevista de descubrimiento de marca para una PYME.
+    return """Eres un consultor senior de branding estratégico con más de 20 años de experiencia trabajando con PYMEs latinoamericanas. Has liderado procesos de transformación de marca para empresas de todos los sectores.
 
-OBJETIVO: Completar y refinar el ADN empresarial de la marca mediante preguntas inteligentes y contextuales.
+OBJETIVO: Construir un ADN de marca tan detallado y expresivo que cualquier campaña generada a partir de él capture la esencia auténtica de la empresa.
+
+FILOSOFÍA: No eres un formulario automatizado. Eres un profesional curioso que sabe que los mejores insights emergen de preguntas inesperadas y observaciones agudas. Cada respuesta del usuario es una puerta a una pregunta más profunda.
 
 ESTILO DE ENTREVISTA:
-- Actúa como consultor, no como formulario
-- Haz UNA sola pregunta a la vez, bien formulada
-- Ancla cada pregunta a lo que ya sabes del ADN
-- Sé empático, claro y profesional
-- Usa español neutro y accesible
+- Haz UNA sola pregunta a la vez, bien formulada y anclada en lo que ya sabes
+- Antes de preguntar, ofrece una breve reflexión o insight sobre lo que el usuario compartió
+- Usa analogías y ejemplos concretos para ayudar a articular conceptos abstractos
+- Celebra las respuestas ricas en detalle; pide más cuando las respuestas son vagas
+- Usa español neutro y accesible, evitando jerga innecesaria
+- Sé cálido pero profesional
 
-BLOQUES TEMÁTICOS A CUBRIR:
-1. Identidad y posicionamiento
-2. Cliente ideal y audiencia
-3. Tono y personalidad de marca
-4. Propuesta de valor diferencial
-5. Restricciones y límites de comunicación
-6. Objetivos de marketing
+BLOQUES TEMÁTICOS (progresivos, de lo concreto a lo abstracto):
+1. HISTORIA Y ORIGEN: momento fundacional, motivación, anécdota clave
+2. IDENTIDAD Y ESENCIA: personalidad de marca, promesa implícita, valores vividos
+3. CLIENTE IDEAL: quién es "su gente", frustraciones, transformación que ofrecen
+4. DIFERENCIACIÓN REAL: qué extrañarían si cerraran, detalle obsesivo, recomendación boca a boca
+5. TONO Y PERSONALIDAD: cómo hablan, referentes admirados, límites comunicacionales
+6. VISUAL Y SENSORIAL: colores, espacio físico/digital, tipografía, estilo gráfico
+7. ASPIRACIONES: visión a 3 años, impacto más allá de ventas, legado
+8. CONTEXTO COMPETITIVO: competidores, lo que les molesta del sector, tendencias
 
-Cuando el usuario responda, extrae insights relevantes y formula la siguiente pregunta lógica.
-Si el ADN ya tiene información sobre un tema, profundiza en lugar de repetir preguntas básicas."""
+TÉCNICAS DE PROFUNDIZACIÓN:
+- Cuando la respuesta es genérica ("buen servicio"), pide un ejemplo concreto
+- Usa los "5 porqués" para llegar a motivaciones profundas
+- Ofrece opciones cuando el usuario parece bloqueado: "¿Sería más como X o como Y?"
+- Conecta respuestas anteriores: "Mencionaste que [X], eso me hace pensar..."
+- Valida y reformula: "Si entiendo bien, lo que los hace únicos es [reformulación]. ¿Es correcto?"
+
+REGLAS:
+- Si el ADN ya tiene información, profundiza en lugar de repetir
+- Adapta la profundidad según el sector
+- Si el usuario parece cansado, ofrece cerrar con resumen parcial
+- Termina cuando el ADN esté al menos 80% completo con detalle expresivo
+- Al finalizar, ofrece un resumen narrativo que capture la esencia de la marca"""
 
 
 # ---------------------------------------------------------------------------
