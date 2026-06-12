@@ -66,6 +66,11 @@ PORT = _parse_port()
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
 # ---------------------------------------------------------------------------
+# Versión de la aplicación
+# ---------------------------------------------------------------------------
+APP_VERSION = "0.3.0"  # Versión post-auditoría de seguridad
+
+# ---------------------------------------------------------------------------
 # Timeouts para llamadas a Ollama
 # Se pueden sobreescribir con variables de entorno o via config.json
 # (clave: "ollama_timeout", "ollama_timeout_campaign", "ollama_timeout_adn")
@@ -704,16 +709,32 @@ _PROMPT_INJECTION_PATTERNS = [
     r'(?i)<\|im_start\|>',
     r'(?i)<\|im_end\|>',
     r'(?i)###\s*(system|instruction|human|assistant)',
+    # Patrones adicionales de inyección
+    r'(?i)do\s+not\s+follow',
+    r'(?i)no\s+sigas\s+(las\s+)?instrucciones',
+    r'(?i)override\s+(the\s+)?(system|instructions)',
+    r'(?i)sobreescri(be|bir)\s+(las\s+)?instrucciones',
+    r'(?i)\bDAN\b',  # "Do Anything Now" jailbreak
+    r'(?i)jailbreak',
+    r'(?i)developer\s+mode',
+    r'(?i)modo\s+desarrollador',
 ]
+
+# Límite máximo de caracteres para input del usuario (previene abuso de tokens)
+_MAX_USER_INPUT_LENGTH = 10000
 
 def _sanitize_user_input(text: str) -> str:
     """Sanitiza el input del usuario para prevenir inyección de prompts.
-    
     Neutraliza patrones conocidos de inyección reemplazándolos con marcadores
     inofensivos, sin eliminar el texto completo (para no perder datos legítimos
     que podrían contener palabras similares en contexto de marketing).
+    También trunca inputs excesivamente largos para prevenir abuso de tokens.
     """
     import re
+    # Truncar si excede el límite máximo
+    if len(text) > _MAX_USER_INPUT_LENGTH:
+        text = text[:_MAX_USER_INPUT_LENGTH]
+        logger.warning(f"Input de usuario truncado de {len(text)} a {_MAX_USER_INPUT_LENGTH} caracteres")
     sanitized = text
     for pattern in _PROMPT_INJECTION_PATTERNS:
         sanitized = re.sub(pattern, '[contenido filtrado]', sanitized)
@@ -1009,8 +1030,22 @@ class WebsiteAnalyzeRequest(BaseModel):
 # ---------------------------------------------------------------------------
 @app.get("/api/health")
 def health_check():
-    """Verificación de estado del servidor."""
-    return {"status": "ok", "version": "0.1.0", "timestamp": datetime.utcnow().isoformat()}
+    """Verificación de estado del servidor con información de dependencias."""
+    import platform
+    ollama_ok = False
+    try:
+        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=3)
+        ollama_ok = r.status_code == 200
+    except Exception:
+        pass
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "timestamp": datetime.utcnow().isoformat(),
+        "python_version": platform.python_version(),
+        "ollama_available": ollama_ok,
+        "image_engine_available": IMAGE_ENGINE_AVAILABLE,
+    }
 
 
 @app.get("/api/config")
