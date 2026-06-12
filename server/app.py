@@ -306,6 +306,20 @@ async def startup_event():
     logger.info(f"CCS Brand Assistant iniciado. DATA_DIR={DATA_DIR}")
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Limpieza de recursos al detener el servidor."""
+    global _engine_ttl_timer
+    # Cancelar el timer de TTL del motor de imágenes
+    with _engine_ttl_lock:
+        if _engine_ttl_timer is not None:
+            _engine_ttl_timer.cancel()
+            _engine_ttl_timer = None
+    # Apagar el ThreadPoolExecutor sin esperar tareas pendientes
+    _thread_pool.shutdown(wait=False)
+    logger.info("CCS Brand Assistant detenido. Recursos liberados.")
+
+
 async def _verify_and_fix_models():
     """Verifica que el modelo configurado y llama3.1:8b existen en Ollama.
     Si no existen, intenta descargarlos automáticamente (ollama pull).
@@ -510,6 +524,35 @@ def load_json(path: Path, default=None) -> Any:
             logger.error(f"Error leyendo JSON {path}: {e}")
             return default if default is not None else {}
     return default if default is not None else {}
+
+
+def _find_campaign_dir(campaign_id: str) -> Optional[Path]:
+    """Busca el directorio de una campaña por su ID exacto.
+
+    El directorio de campaña sigue el patrón: {brand_id}_{campaign_id}
+    Se verifica que el nombre del directorio termine exactamente con el
+    campaign_id (separado por '_') para evitar colisiones por substring.
+
+    Returns:
+        Path al directorio de la campaña, o None si no se encuentra.
+    """
+    campaigns_dir = DATA_DIR / "campaigns"
+    if not campaigns_dir.exists():
+        return None
+    for camp_dir in campaigns_dir.iterdir():
+        if not camp_dir.is_dir():
+            continue
+        # El directorio se llama "{brand_id}_{campaign_id}"
+        # Verificar igualdad exacta del sufijo tras el primer '_'
+        dir_name = camp_dir.name
+        # Caso 1: el nombre del directorio ES exactamente el campaign_id
+        if dir_name == campaign_id:
+            return camp_dir
+        # Caso 2: el nombre sigue el patrón {brand_id}_{campaign_id}
+        parts = dir_name.split("_", 1)
+        if len(parts) == 2 and parts[1] == campaign_id:
+            return camp_dir
+    return None
 
 
 def get_system_prompt(agent_id: str) -> str:
@@ -2577,26 +2620,24 @@ def get_campaign_progress(campaign_id: str):
     - publications_done, publications_total, pct: progreso global
     - channels: lista de {channel, done, total, pct} por canal
     """
-    campaigns_dir = DATA_DIR / "campaigns"
-    for camp_dir in campaigns_dir.iterdir():
-        if camp_dir.is_dir() and campaign_id in camp_dir.name:
-            camp = load_json(camp_dir / "campaign.json", {})
-            if camp.get("id") == campaign_id:
-                progress = camp.get("generation_progress", {})
-                return {
-                    "campaign_id": campaign_id,
-                    "status": camp.get("status", "unknown"),
-                    "publications_count": camp.get("publications_count", 0),
-                    "publications_done": progress.get("publications_done", 0),
-                    "publications_total": progress.get("publications_total", 0),
-                    "pct": progress.get("pct", 0),
-                    "batch": progress.get("batch", 0),
-                    "total_batches": progress.get("total_batches", 0),
-                    "channels": progress.get("channels", []),
-                    "error": camp.get("error"),
-                    "updated_at": camp.get("updated_at"),
-                }
-    raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    camp_dir = _find_campaign_dir(campaign_id)
+    if not camp_dir:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    camp = load_json(camp_dir / "campaign.json", {})
+    progress = camp.get("generation_progress", {})
+    return {
+        "campaign_id": campaign_id,
+        "status": camp.get("status", "unknown"),
+        "publications_count": camp.get("publications_count", 0),
+        "publications_done": progress.get("publications_done", 0),
+        "publications_total": progress.get("publications_total", 0),
+        "pct": progress.get("pct", 0),
+        "batch": progress.get("batch", 0),
+        "total_batches": progress.get("total_batches", 0),
+        "channels": progress.get("channels", []),
+        "error": camp.get("error"),
+        "updated_at": camp.get("updated_at"),
+    }
 
 
 @app.post("/api/brands/{brand_id}/campaigns", status_code=201)
@@ -3212,72 +3253,61 @@ FORMATO DE RESPUESTA (JSON obligatorio):
 def get_publications(campaign_id: str, channel: Optional[str] = None,
                      status: Optional[str] = None):
     """Lista las publicaciones de una campaña con filtros opcionales."""
-    # Buscar el directorio de la campaña
-    for camp_dir in (DATA_DIR / "campaigns").iterdir():
-        if camp_dir.is_dir() and campaign_id in camp_dir.name:
-            plan = load_json(camp_dir / "plan.json", {"publications": []})
-            publications = plan.get("publications", [])
-
-            if channel:
-                publications = [p for p in publications if p.get("channel") == channel]
-            if status:
-                publications = [p for p in publications if p.get("status") == status]
-
-            return {"publications": publications, "total": len(publications)}
-
-    raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    camp_dir = _find_campaign_dir(campaign_id)
+    if not camp_dir:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    plan = load_json(camp_dir / "plan.json", {"publications": []})
+    publications = plan.get("publications", [])
+    if channel:
+        publications = [p for p in publications if p.get("channel") == channel]
+    if status:
+        publications = [p for p in publications if p.get("status") == status]
+    return {"publications": publications, "total": len(publications)}
 
 
 @app.post("/api/campaigns/{campaign_id}/publications")
 async def create_single_publication(campaign_id: str, pub_data: PublicationCreate,
                                     background_tasks: BackgroundTasks):
     """Crea una publicación individual para un día específico del calendario.
-
     Usa la configuración de la campaña (ADN, objetivo, etapa) para generar
     el contenido con el LLM en segundo plano.
     """
-    for camp_dir in (DATA_DIR / "campaigns").iterdir():
-        if camp_dir.is_dir() and campaign_id in camp_dir.name:
-            plan_file = camp_dir / "plan.json"
-            plan = load_json(plan_file, {"publications": []})
-            camp = load_json(camp_dir / "campaign.json", {})
-
-            # Crear publicación base
-            pub_id = str(uuid.uuid4())
-            new_pub = {
-                "id": pub_id,
-                "campaign_id": campaign_id,
-                "brand_id": camp.get("brand_id", ""),
-                "channel": pub_data.channel,
-                "scheduled_at": f"{pub_data.scheduled_date} {pub_data.scheduled_time}",
-                "stage": "Personalizada",
-                "objective": camp.get("objective", ""),
-                "text": "Generando contenido con IA...",
-                "hashtags": [],
-                "cta": "",
-                "image_prompt": "",
-                "status": "generating",
-                "edit_status": "generating",
-                "created_at": datetime.utcnow().isoformat(),
-            }
-
-            # Agregar al plan y guardar
-            plan.setdefault("publications", []).append(new_pub)
-            save_json(plan_file, plan)
-
-            # Actualizar conteo en campaign.json
-            camp["publications_count"] = len(plan["publications"])
-            camp["updated_at"] = datetime.utcnow().isoformat()
-            save_json(camp_dir / "campaign.json", camp)
-
-            # Generar contenido en segundo plano
-            background_tasks.add_task(
-                _generate_single_publication, camp_dir, pub_id, new_pub, camp
-            )
-
-            return new_pub
-
-    raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    camp_dir = _find_campaign_dir(campaign_id)
+    if not camp_dir:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    plan_file = camp_dir / "plan.json"
+    plan = load_json(plan_file, {"publications": []})
+    camp = load_json(camp_dir / "campaign.json", {})
+    # Crear publicación base
+    pub_id = str(uuid.uuid4())
+    new_pub = {
+        "id": pub_id,
+        "campaign_id": campaign_id,
+        "brand_id": camp.get("brand_id", ""),
+        "channel": pub_data.channel,
+        "scheduled_at": f"{pub_data.scheduled_date} {pub_data.scheduled_time}",
+        "stage": "Personalizada",
+        "objective": camp.get("objective", ""),
+        "text": "Generando contenido con IA...",
+        "hashtags": [],
+        "cta": "",
+        "image_prompt": "",
+        "status": "generating",
+        "edit_status": "generating",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    # Agregar al plan y guardar
+    plan.setdefault("publications", []).append(new_pub)
+    save_json(plan_file, plan)
+    # Actualizar conteo en campaign.json
+    camp["publications_count"] = len(plan["publications"])
+    camp["updated_at"] = datetime.utcnow().isoformat()
+    save_json(camp_dir / "campaign.json", camp)
+    # Generar contenido en segundo plano
+    background_tasks.add_task(
+        _generate_single_publication, camp_dir, pub_id, new_pub, camp
+    )
+    return new_pub
 
 
 async def _generate_single_publication(camp_dir, pub_id: str, pub: dict, camp: dict):
@@ -3330,14 +3360,14 @@ async def _generate_single_publication(camp_dir, pub_id: str, pub: dict, camp: d
         pub["edit_status"] = "needs_review"
         pub["updated_at"] = datetime.utcnow().isoformat()
 
-        # Guardar en plan.json
+        # Guardar en plan.json (con lock para evitar corrupción por escritura concurrente)
         plan_file = camp_dir / "plan.json"
         plan = load_json(plan_file, {"publications": []})
         for i, p in enumerate(plan.get("publications", [])):
             if p.get("id") == pub_id:
                 plan["publications"][i] = pub
                 break
-        save_json(plan_file, plan)
+        await save_json_safe(plan_file, plan)
 
         log_audit("content_writer", "create_single_publication",
                   {"campaign_id": camp.get("id"), "pub_id": pub_id, "channel": pub["channel"]},
@@ -3356,7 +3386,7 @@ async def _generate_single_publication(camp_dir, pub_id: str, pub: dict, camp: d
             if p.get("id") == pub_id:
                 plan["publications"][i] = pub
                 break
-        save_json(plan_file, plan)
+        await save_json_safe(plan_file, plan)
 
         log_audit("content_writer", "create_single_publication",
                   {"campaign_id": camp.get("id"), "pub_id": pub_id},
@@ -3366,40 +3396,38 @@ async def _generate_single_publication(camp_dir, pub_id: str, pub: dict, camp: d
 @app.get("/api/campaigns/{campaign_id}/publications/{pub_id}")
 def get_publication(campaign_id: str, pub_id: str):
     """Retorna el detalle de una publicación específica."""
-    for camp_dir in (DATA_DIR / "campaigns").iterdir():
-        if camp_dir.is_dir() and campaign_id in camp_dir.name:
-            plan = load_json(camp_dir / "plan.json", {"publications": []})
-            for pub in plan.get("publications", []):
-                if pub.get("id") == pub_id:
-                    return pub
+    camp_dir = _find_campaign_dir(campaign_id)
+    if not camp_dir:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada")
+    plan = load_json(camp_dir / "plan.json", {"publications": []})
+    for pub in plan.get("publications", []):
+        if pub.get("id") == pub_id:
+            return pub
     raise HTTPException(status_code=404, detail="Publicación no encontrada")
 
 
 @app.put("/api/campaigns/{campaign_id}/publications/{pub_id}")
 def update_publication(campaign_id: str, pub_id: str, update: PublicationUpdate):
     """Actualiza una publicación (texto, hashtags, estado, etc.)."""
-    for camp_dir in (DATA_DIR / "campaigns").iterdir():
-        if camp_dir.is_dir() and campaign_id in camp_dir.name:
-            plan_file = camp_dir / "plan.json"
-            plan = load_json(plan_file, {"publications": []})
-
-            for pub in plan.get("publications", []):
-                if pub.get("id") == pub_id:
-                    update_data = update.dict(exclude_none=True)
-                    pub.update(update_data)
-                    pub["updated_at"] = datetime.utcnow().isoformat()
-
-                    # Registrar cambio de estado
-                    if "status" in update_data:
-                        pub["status_history"] = pub.get("status_history", [])
-                        pub["status_history"].append({
-                            "status": update_data["status"],
-                            "timestamp": datetime.utcnow().isoformat(),
-                        })
-
-                    save_json(plan_file, plan)
-                    return pub
-
+    camp_dir = _find_campaign_dir(campaign_id)
+    if not camp_dir:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada")
+    plan_file = camp_dir / "plan.json"
+    plan = load_json(plan_file, {"publications": []})
+    for pub in plan.get("publications", []):
+        if pub.get("id") == pub_id:
+            update_data = update.dict(exclude_none=True)
+            pub.update(update_data)
+            pub["updated_at"] = datetime.utcnow().isoformat()
+            # Registrar cambio de estado
+            if "status" in update_data:
+                pub["status_history"] = pub.get("status_history", [])
+                pub["status_history"].append({
+                    "status": update_data["status"],
+                    "timestamp": datetime.utcnow().isoformat(),
+                })
+            save_json(plan_file, plan)
+            return pub
     raise HTTPException(status_code=404, detail="Publicación no encontrada")
 
 
@@ -3419,76 +3447,67 @@ async def regenerate_publication(campaign_id: str, pub_id: str,
     lang_label = {
         "es": "español", "en": "English", "pt": "português"
     }.get(language or "es", "español")
-
-    for camp_dir in (DATA_DIR / "campaigns").iterdir():
-        if camp_dir.is_dir() and campaign_id in camp_dir.name:
-            plan_file = camp_dir / "plan.json"
-            plan = load_json(plan_file, {"publications": []})
-            camp = load_json(camp_dir / "campaign.json", {})
-
-            for pub in plan.get("publications", []):
-                if pub.get("id") == pub_id:
-                    brand_id = camp.get("brand_id")
-                    adn = load_json(DATA_DIR / "brands" / brand_id / "adn.json") or \
-                          load_json(DATA_DIR / "brands" / brand_id / "adn_draft.json", {})
-                    adn_summary = json.dumps(adn.get("fields", {}), ensure_ascii=False)[:1500]
-
-                    # Usar el modelo especificado o el activo global
-                    model = model or get_active_model()
-                    system_prompt = get_system_prompt("content_writer") or _get_content_writer_prompt()
-
-                    user_message = (
-                        f"Regenera esta publicación para {pub.get('channel')}:\n\n"
-                        f"PUBLICACIÓN ACTUAL:\n{pub.get('text', '')}\n\n"
-                        f"ETAPA: {pub.get('stage', '')}\n"
-                        f"OBJETIVO: {pub.get('objective', '')}\n"
-                        f"INSTRUCCIÓN: {instruction or 'Mejora la publicación manteniendo el ADN de marca'}\n"
-                        f"IDIOMA DE SALIDA: {lang_label}\n\n"
-                        f"ADN DE MARCA:\n{adn_summary}\n\n"
-                        f"IMPORTANTE: Responde SOLO con JSON válido, sin bloques de código markdown, "
-                        f"sin texto adicional antes ni después del JSON.\n"
-                        f'Formato: {{"texto_del_post": "...", "hashtags": ["#tag1"], "cta": "...", "image_prompt": "..."}}'
-                    )
-
-                    loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(
-                        _thread_pool, lambda: call_ollama(
-                            model, system_prompt, user_message,
-                            temperature=0.8,
-                            timeout=get_ollama_timeout("default"),
-                        )
-                    )
-                    latency = int((time.time() - start) * 1000)
-
-                    # Guardar versión anterior
-                    pub["previous_versions"] = pub.get("previous_versions", [])
-                    pub["previous_versions"].append({
-                        "text": pub.get("text"),
-                        "hashtags": pub.get("hashtags"),
-                        "regenerated_at": datetime.utcnow().isoformat(),
-                    })
-
-                    # Parsear JSON limpio (elimina bloques ```json ... ``` si existen)
-                    parsed = _parse_llm_json(result)
-                    if parsed:
-                        # Soportar tanto 'text' como 'texto_del_post'
-                        pub["text"] = parsed.get("text") or parsed.get("texto_del_post") or pub.get("text", "")
-                        pub["hashtags"] = parsed.get("hashtags", pub.get("hashtags", []))
-                        pub["cta"] = parsed.get("cta", pub.get("cta", ""))
-                        pub["image_prompt"] = parsed.get("image_prompt", pub.get("image_prompt", ""))
-                    else:
-                        # Si no hay JSON válido, usar el texto limpio directamente
-                        pub["text"] = _strip_markdown_fences(result)
-
-                    pub["edit_status"] = "regenerated"
-                    pub["updated_at"] = datetime.utcnow().isoformat()
-                    save_json(plan_file, plan)
-
-                    log_audit("content_writer", "regenerate_publication",
-                              {"campaign_id": campaign_id, "pub_id": pub_id},
-                              result[:500], model, latency, True)
-                    return pub
-
+    camp_dir = _find_campaign_dir(campaign_id)
+    if not camp_dir:
+        raise HTTPException(status_code=404, detail="Publicación no encontrada")
+    plan_file = camp_dir / "plan.json"
+    plan = load_json(plan_file, {"publications": []})
+    camp = load_json(camp_dir / "campaign.json", {})
+    for pub in plan.get("publications", []):
+        if pub.get("id") == pub_id:
+            brand_id = camp.get("brand_id")
+            adn = load_json(DATA_DIR / "brands" / brand_id / "adn.json") or \
+                  load_json(DATA_DIR / "brands" / brand_id / "adn_draft.json", {})
+            adn_summary = json.dumps(adn.get("fields", {}), ensure_ascii=False)[:1500]
+            # Usar el modelo especificado o el activo global
+            model = model or get_active_model()
+            system_prompt = get_system_prompt("content_writer") or _get_content_writer_prompt()
+            user_message = (
+                f"Regenera esta publicación para {pub.get('channel')}:\n\n"
+                f"PUBLICACIÓN ACTUAL:\n{pub.get('text', '')}\n\n"
+                f"ETAPA: {pub.get('stage', '')}\n"
+                f"OBJETIVO: {pub.get('objective', '')}\n"
+                f"INSTRUCCIÓN: {instruction or 'Mejora la publicación manteniendo el ADN de marca'}\n"
+                f"IDIOMA DE SALIDA: {lang_label}\n\n"
+                f"ADN DE MARCA:\n{adn_summary}\n\n"
+                f"IMPORTANTE: Responde SOLO con JSON válido, sin bloques de código markdown, "
+                f"sin texto adicional antes ni después del JSON.\n"
+                f'Formato: {{"texto_del_post": "...", "hashtags": ["#tag1"], "cta": "...", "image_prompt": "..."}}'
+            )
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                _thread_pool, lambda: call_ollama(
+                    model, system_prompt, user_message,
+                    temperature=0.8,
+                    timeout=get_ollama_timeout("default"),
+                )
+            )
+            latency = int((time.time() - start) * 1000)
+            # Guardar versión anterior
+            pub["previous_versions"] = pub.get("previous_versions", [])
+            pub["previous_versions"].append({
+                "text": pub.get("text"),
+                "hashtags": pub.get("hashtags"),
+                "regenerated_at": datetime.utcnow().isoformat(),
+            })
+            # Parsear JSON limpio (elimina bloques ```json ... ``` si existen)
+            parsed = _parse_llm_json(result)
+            if parsed:
+                # Soportar tanto 'text' como 'texto_del_post'
+                pub["text"] = parsed.get("text") or parsed.get("texto_del_post") or pub.get("text", "")
+                pub["hashtags"] = parsed.get("hashtags", pub.get("hashtags", []))
+                pub["cta"] = parsed.get("cta", pub.get("cta", ""))
+                pub["image_prompt"] = parsed.get("image_prompt", pub.get("image_prompt", ""))
+            else:
+                # Si no hay JSON válido, usar el texto limpio directamente
+                pub["text"] = _strip_markdown_fences(result)
+            pub["edit_status"] = "regenerated"
+            pub["updated_at"] = datetime.utcnow().isoformat()
+            save_json(plan_file, plan)
+            log_audit("content_writer", "regenerate_publication",
+                      {"campaign_id": campaign_id, "pub_id": pub_id},
+                      result[:500], model, latency, True)
+            return pub
     raise HTTPException(status_code=404, detail="Publicación no encontrada")
 
 
@@ -4013,27 +4032,19 @@ async def generate_publication_image(campaign_id: str, pub_id: str, req: Generat
         # Actualizar publicación con URL de imagen
         image_url = f"/api/images/{pub_id}.{ext}?t={ts}"
         pub_updated = False
-        campaigns_root = DATA_DIR / "campaigns"
-        if campaigns_root.exists():
-            for camp_dir in campaigns_root.iterdir():
-                if not camp_dir.is_dir():
-                    continue
-                if campaign_id in camp_dir.name or camp_dir.name == campaign_id:
-                    plan_file = camp_dir / "plan.json"
-                    if not plan_file.exists():
-                        continue
-                    plan = load_json(plan_file, {"publications": []})
-                    for pub in plan.get("publications", []):
-                        if pub.get("id") == pub_id:
-                            pub["generated_image_url"] = f"/api/images/{pub_id}.{ext}"
-                            pub["image_generation_method"] = generation_method
-                            pub["updated_at"] = datetime.utcnow().isoformat()
-                            save_json(plan_file, plan)
-                            pub_updated = True
-                            break
-                if pub_updated:
-                    break
-
+        camp_dir = _find_campaign_dir(campaign_id)
+        if camp_dir:
+            plan_file = camp_dir / "plan.json"
+            if plan_file.exists():
+                plan = load_json(plan_file, {"publications": []})
+                for pub in plan.get("publications", []):
+                    if pub.get("id") == pub_id:
+                        pub["generated_image_url"] = f"/api/images/{pub_id}.{ext}"
+                        pub["image_generation_method"] = generation_method
+                        pub["updated_at"] = datetime.utcnow().isoformat()
+                        save_json(plan_file, plan)
+                        pub_updated = True
+                        break
         if not pub_updated:
             logger.warning(f"No se encontró la publicación {pub_id} para actualizar imagen")
 
@@ -4299,37 +4310,39 @@ async def upload_publication_image(
     file: UploadFile = File(...),
 ):
     """Permite al usuario cargar una imagen manualmente desde su disco.
-
     El archivo se guarda en el directorio de imágenes del plugin y se asocia
-    a la publicación. Soporta PNG, JPG, JPEG, GIF, WEBP y SVG.
-    Máximo 10 MB.
+    a la publicación. Soporta PNG, JPG, JPEG, GIF y WEBP.
+    SVG no está permitido por riesgo de XSS. Máximo 10 MB.
     """
     import time
-
-    # Validar tipo de archivo
-    allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml"}
+    # Validar tipo de archivo (SVG excluido por riesgo de XSS)
+    allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"}
     content_type = file.content_type or ""
     if content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipo de archivo no soportado: {content_type}. Use PNG, JPG, GIF, WEBP o SVG."
+            detail=f"Tipo de archivo no soportado: {content_type}. Use PNG, JPG, GIF o WEBP. SVG no está permitido por seguridad."
         )
-
-    # Leer contenido
-    content = await file.read()
-
-    # Validar tamaño (máx 10 MB)
-    max_size = 10 * 1024 * 1024
-    if len(content) > max_size:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Archivo demasiado grande: {len(content) // 1024} KB. Máximo 10 MB."
-        )
-
+    # Leer contenido con límite de tamaño para evitar consumo excesivo de RAM
+    max_size = 10 * 1024 * 1024  # 10 MB
+    chunks = []
+    total_read = 0
+    while True:
+        chunk = await file.read(64 * 1024)  # Leer en bloques de 64KB
+        if not chunk:
+            break
+        total_read += len(chunk)
+        if total_read > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Archivo demasiado grande (>{max_size // (1024*1024)} MB). Máximo 10 MB."
+            )
+        chunks.append(chunk)
+    content = b"".join(chunks)
     # Determinar extensión
     ext_map = {
         "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg",
-        "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg",
+        "image/gif": "gif", "image/webp": "webp",
     }
     ext = ext_map.get(content_type, "png")
 
@@ -4348,26 +4361,19 @@ async def upload_publication_image(
     # Actualizar publicación
     image_url = f"/api/images/{pub_id}.{ext}?t={ts}"
     pub_updated = False
-    campaigns_root = DATA_DIR / "campaigns"
-    if campaigns_root.exists():
-        for camp_dir in campaigns_root.iterdir():
-            if not camp_dir.is_dir():
-                continue
-            if campaign_id in camp_dir.name or camp_dir.name == campaign_id:
-                plan_file = camp_dir / "plan.json"
-                if not plan_file.exists():
-                    continue
-                plan = load_json(plan_file, {"publications": []})
-                for pub in plan.get("publications", []):
-                    if pub.get("id") == pub_id:
-                        pub["generated_image_url"] = f"/api/images/{pub_id}.{ext}"
-                        pub["image_generation_method"] = "manual_upload"
-                        pub["updated_at"] = datetime.utcnow().isoformat()
-                        save_json(plan_file, plan)
-                        pub_updated = True
-                        break
-            if pub_updated:
-                break
+    camp_dir = _find_campaign_dir(campaign_id)
+    if camp_dir:
+        plan_file = camp_dir / "plan.json"
+        if plan_file.exists():
+            plan = load_json(plan_file, {"publications": []})
+            for pub in plan.get("publications", []):
+                if pub.get("id") == pub_id:
+                    pub["generated_image_url"] = f"/api/images/{pub_id}.{ext}"
+                    pub["image_generation_method"] = "manual_upload"
+                    pub["updated_at"] = datetime.utcnow().isoformat()
+                    save_json(plan_file, plan)
+                    pub_updated = True
+                    break
 
     logger.info(f"Imagen subida manualmente: {img_filename} ({len(content)} bytes) para pub {pub_id}")
     log_audit("image_generator", "upload_image",
@@ -5130,8 +5136,22 @@ async def import_all_data(file: UploadFile = File(...)):
     4. No sobreescribe datos existentes (merge inteligente)
     """
     try:
-        # Leer el archivo subido
-        content = await file.read()
+        # Leer el archivo subido con límite de tamaño (máx 100 MB)
+        max_import_size = 100 * 1024 * 1024
+        chunks = []
+        total_read = 0
+        while True:
+            chunk = await file.read(256 * 1024)  # 256KB chunks
+            if not chunk:
+                break
+            total_read += len(chunk)
+            if total_read > max_import_size:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Archivo de importación demasiado grande (>{max_import_size // (1024*1024)} MB). Máximo 100 MB."
+                )
+            chunks.append(chunk)
+        content = b"".join(chunks)
         try:
             package = json.loads(content.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
