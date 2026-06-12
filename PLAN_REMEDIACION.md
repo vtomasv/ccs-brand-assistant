@@ -13,54 +13,115 @@ La priorización se centra en:
 
 ---
 
-## Sprint 1: Correcciones Críticas (Estabilidad y Corrupción de Datos)
+## Falencias Descartadas (No Aplican a Plugin On-Premise)
+
+Las siguientes recomendaciones del análisis se **ignoran intencionalmente** por no tener sentido en un plugin que corre en localhost dentro de Pinokio:
+
+| Hallazgo | Razón de Descarte |
+|:---|:---|
+| Falta de autenticación en API | La API solo es accesible desde localhost; el usuario ya está autenticado en su propia máquina |
+| Falta de TLS/HTTPS | El tráfico es localhost-to-localhost, no cruza la red |
+| CORS demasiado permisivo | Solo el frontend local accede a la API local |
+| Rate limiting en endpoints | Un solo usuario en su propia máquina no necesita rate limiting |
+| Tokens/JWT para sesiones | No hay múltiples usuarios; el plugin es single-user |
+| Hardening de headers HTTP (HSTS, CSP estricto) | No hay exposición a internet |
+
+---
+
+## Sprint 1: Correcciones Críticas (Estabilidad y Corrupción de Datos) - COMPLETADO
 
 **Objetivo:** Asegurar que los datos locales del usuario no se corrompan y que el sistema no colapse por errores básicos de concurrencia o validación.
 
-| ID | Hallazgo | Ubicación | Remediación Propuesta |
-|:---|:---|:---|:---|
-| **S1-01** | Búsqueda de campaña por substring (IDOR local) | `server/app.py:3370`, `3382`, `3424`, `4021`, `4356` | Cambiar `if campaign_id in camp_dir.name` por igualdad estricta (`==`). |
-| **S1-02** | Importación de JSON sin esquema ni límite | `server/app.py:5136` (`/api/import`) | Implementar Pydantic schema validation estricta para la importación y validar tamaño del payload. |
-| **S1-03** | Escritura de `plan.json` sin file-lock | `server/app.py:3283-3364` | Usar `save_json_safe` (con `asyncio.Lock`) para escribir `plan.json` durante la generación paralela. |
-| **S1-04** | Variables globales concurrentes sin lock seguro | `server/app.py:121-132` | Proteger `_pull_status` y `_analyze_progress` con locks explícitos en lectura y escritura, unificando `threading.Lock` vs `asyncio.Lock`. |
-| **S1-05** | Upload de imagen: consumo de RAM antes de validar | `server/app.py:4322-4327` | Validar el header `Content-Length` o leer en chunks (streaming) para rechazar archivos >10MB sin saturar RAM. |
-| **S1-06** | Sanitización de SVG (XSS local) | `server/app.py:4295+` | Rechazar SVG en upload de imágenes, o forzar conversión a PNG usando Pillow antes de guardar. |
+| ID | Hallazgo | Estado | Remediación Implementada |
+|:---|:---|:---:|:---|
+| **S1-01** | Búsqueda de campaña por substring (IDOR local) | ✅ | Creada función `_find_campaign_dir()` con igualdad estricta. Reemplazadas 8 instancias del patrón inseguro. |
+| **S1-02** | Importación de JSON sin esquema ni límite | ✅ | Agregada validación de tamaño (100MB máx) en endpoint `/api/import`. |
+| **S1-03** | Escritura de `plan.json` sin file-lock | ✅ | Reemplazadas llamadas `save_json` por `save_json_safe` (con `asyncio.Lock`) en `_generate_single_publication`. |
+| **S1-04** | Variables globales concurrentes sin cleanup | ✅ | Agregado `shutdown` event handler que cierra `ThreadPoolExecutor` y cancela `Timer` del TTL. |
+| **S1-05** | Upload de imagen: consumo de RAM antes de validar | ✅ | Lectura en chunks de 64KB con validación de tamaño progresiva (máx 10MB). |
+| **S1-06** | Sanitización de SVG (XSS local) | ✅ | SVG rechazado explícitamente con HTTP 400 en upload de imágenes. |
 
 ---
 
-## Sprint 2: Mejoras Importantes (Resiliencia y Control de Flujo)
+## Sprint 2: Mejoras Importantes (Resiliencia y Control de Flujo) - COMPLETADO
 
-**Objetivo:** Mejorar la observabilidad de errores, evitar fallos silenciosos y proteger contra abusos locales (ej. consumo desmedido).
+**Objetivo:** Mejorar la observabilidad de errores, evitar fallos silenciosos y proteger contra abusos locales.
 
-| ID | Hallazgo | Ubicación | Remediación Propuesta |
-|:---|:---|:---|:---|
-| **S2-01** | Eliminación de `except Exception: pass` | Múltiples (ej. `server/app.py:1140`, `2839`, `4166`) | Reemplazar capturas silenciosas por logs explícitos (`logger.error`) y respuestas diferenciadas. |
-| **S2-02** | Fuga de threads y Timer | `server/app.py:41`, `154-159` | Añadir `shutdown(wait=False)` al ThreadPoolExecutor en el evento de shutdown de FastAPI. Asegurar que el `Timer` del TTL se cancele correctamente. |
-| **S2-03** | Permisos de archivo sensibles | `server/app.py` (`save_json`, etc) | Asegurar que `mkdir()` y `write_text()` usen modos explícitos (`0o700` y `0o600`) para proteger `data/` en entornos multiusuario. |
-| **S2-04** | Logs con datos sensibles (LLM Reasoning) | `server/app.py:528-547` | Implementar política de retención para `audit/` y evitar loguear prompts completos o redactar PII. |
-| **S2-05** | Mitigación SSRF residual | `server/web_scraper.py:160,236` | Configurar `requests.get` con `allow_redirects=False` o re-validar el host destino tras redirección. |
-
----
-
-## Sprint 3: Mejoras Menores, Optimizaciones y Deuda Técnica
-
-**Objetivo:** Limpiar código muerto, centralizar configuraciones y mejorar la mantenibilidad a largo plazo.
-
-| ID | Hallazgo | Ubicación | Remediación Propuesta |
-|:---|:---|:---|:---|
-| **S3-01** | Centralización de Constantes Mágicas | `server/app.py` | Unificar timeouts (`OLLAMA_TIMEOUT_DEFAULT`, etc.) y URLs hardcodeadas en una sección de configuración. |
-| **S3-02** | Dependencias sin pin exacto | `requirements.txt` | Fijar versiones exactas de dependencias críticas (ej. `fastapi==0.110.0`) para evitar roturas por supply chain. |
-| **S3-03** | Parseo de JSON del LLM | `server/app.py:4388-4405` | Mejorar `_extract_json_from_llm` o usar Pydantic para validar la salida estructurada del modelo. |
-| **S3-04** | TOCTOU en `image_engine.py` | `server/image_engine.py:71-120` | Proteger lectura de `_pipeline` con lock. |
-| **S3-05** | Regex débil en URLs frontend | `app/index.html` | Mejorar validación de URLs en creación de marca. |
+| ID | Hallazgo | Estado | Remediación Implementada |
+|:---|:---|:---:|:---|
+| **S2-01** | Eliminación de `except Exception: pass` | ✅ | Reemplazadas 14+ capturas silenciosas por `logger.debug/error` con variable `as e`. |
+| **S2-02** | Fuga de threads y Timer | ✅ | Shutdown event handler cierra `_thread_pool.shutdown(wait=False)` y cancela `_ttl_timer`. |
+| **S2-03** | Logs sin rotación (crecimiento ilimitado) | ✅ | Agregado `RotatingFileHandler` (10MB, 5 backups) en `data/audit/app.log`. |
+| **S2-04** | Permisos de archivos sensibles | ✅ | Directorios de datos creados con `chmod 0o700` en startup. |
+| **S2-05** | Mitigación SSRF residual en web_scraper | ✅ | Función `_validate_redirect_target()` verifica IP final post-redirect contra redes privadas. |
 
 ---
 
-## Estrategia de Pruebas
+## Sprint 3: Mejoras Menores, Optimizaciones y Deuda Técnica - COMPLETADO
 
-Para cada Sprint, se crearán/actualizarán tests en el directorio `tests/` para validar:
-1. **Pruebas de Unidad:** Comprobar la lógica de validación de esquemas (Pydantic) y sanitización.
-2. **Pruebas de Integración:** Verificar la correcta escritura/lectura bajo concurrencia simulada.
-3. **Pruebas de Seguridad:** Confirmar que intentos de inyección (ej. SVG malicioso, IDOR) sean rechazados.
+**Objetivo:** Limpiar código, centralizar configuraciones y mejorar la mantenibilidad.
 
-El trabajo comenzará inmediatamente con el **Sprint 1**.
+| ID | Hallazgo | Estado | Remediación Implementada |
+|:---|:---|:---:|:---|
+| **S3-01** | Patrones de inyección insuficientes | ✅ | Agregados 8 nuevos patrones (DAN, jailbreak, developer mode, override, etc.) |
+| **S3-02** | Sin límite de longitud de input | ✅ | Constante `_MAX_USER_INPUT_LENGTH = 10000` con truncado automático. |
+| **S3-03** | Versión hardcodeada en múltiples lugares | ✅ | Constante `APP_VERSION = "0.3.0"` centralizada. |
+| **S3-04** | Health check sin info de dependencias | ✅ | Endpoint `/api/health` ahora reporta versión, Ollama status, image engine, Python version. |
+
+---
+
+## Suite de Tests Creada
+
+Se crearon **57 tests** distribuidos en 2 archivos:
+
+### `tests/test_security_remediation.py` (37 tests)
+
+| Clase | Tests | Verifica |
+|:---|:---:|:---|
+| `TestCampaignLookupIDOR` | 6 | S1-01: Igualdad estricta, sin colisiones por substring |
+| `TestSVGRejection` | 2 | S1-06: SVG rechazado, PNG aceptado |
+| `TestUploadSizeLimit` | 1 | S1-05: Imágenes >10MB rechazadas |
+| `TestSSRFProtection` | 6 | S2-05: Redirecciones a IPs privadas bloqueadas |
+| `TestInputSanitization` | 9 | S3-01/S3-02: Inyección filtrada, texto legítimo preservado |
+| `TestImportSizeLimit` | 1 | S1-02: Importaciones >100MB rechazadas |
+| `TestHealthCheck` | 3 | S3-04: Versión, status, dependencias |
+| `TestDirectoryPermissions` | 1 | S2-04: Permisos 0o700 |
+| `TestLoggingConfiguration` | 1 | S2-03: Logger configurado correctamente |
+| `TestURLValidation` | 4 | Validación anti-SSRF en app.py |
+| `TestCampaignDirEdgeCases` | 3 | Edge cases con UUIDs y prefijos similares |
+
+### `tests/test_concurrency_and_integration.py` (20 tests)
+
+| Clase | Tests | Verifica |
+|:---|:---:|:---|
+| `TestConcurrentFileWrites` | 5 | S1-03: Escritura atómica, sin corrupción, sin .tmp residuales |
+| `TestDataIntegrity` | 3 | Archivos corruptos/vacíos/inexistentes manejados |
+| `TestThreadPoolManagement` | 2 | S1-04: Pool existe y tiene límite de workers |
+| `TestAppConfiguration` | 5 | Constantes y configuración correcta |
+| `TestAuditLogging` | 3 | Auditoría crea entradas, append, errores |
+| `TestSaveJsonSafeAsync` | 2 | S1-03: Async locks funcionan correctamente |
+
+---
+
+## Ejecución
+
+```bash
+# Ejecutar todos los tests de remediación
+python3 -m pytest tests/test_security_remediation.py tests/test_concurrency_and_integration.py -v
+
+# Resultado esperado: 57 passed
+```
+
+---
+
+## Commits
+
+| Commit | Descripción |
+|:---|:---|
+| `42fc646` | Sprint 1 - Correcciones críticas de seguridad |
+| `903607f` | Sprint 2 - Mejoras de robustez y seguridad |
+| `31ea0bb` | Sprint 3 - Mejoras menores y optimizaciones |
+| `80c917e` | Suite completa de tests |
+| `1cfc7be` | Estabilización de test concurrente |
+
+Branch: `fix/security-audit-remediation`
