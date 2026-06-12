@@ -182,6 +182,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("css-brand-assistant")
 
+# Agregar RotatingFileHandler para evitar crecimiento ilimitado de logs
+try:
+    from logging.handlers import RotatingFileHandler
+    _log_dir = Path(os.environ.get("CCS_DATA_DIR", Path(__file__).parent.parent / "data")) / "audit"
+    _log_dir.mkdir(parents=True, exist_ok=True)
+    _log_file = _log_dir / "app.log"
+    _file_handler = RotatingFileHandler(
+        str(_log_file), maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    _file_handler.setLevel(logging.INFO)
+    logger.addHandler(_file_handler)
+except Exception:
+    pass  # No bloquear inicio si no se puede crear el archivo de log
+
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
@@ -261,8 +276,15 @@ app.add_middleware(SecurityHeadersMiddleware)
 @app.on_event("startup")
 async def startup_event():
     """Inicializa directorios de datos y copia configuraciones por defecto."""
+    import os as _os_startup
     for subdir in ["agents", "prompts/system", "prompts/skills", "sessions", "exports", "brands", "campaigns", "audit"]:
-        (DATA_DIR / subdir).mkdir(parents=True, exist_ok=True)
+        dir_path = DATA_DIR / subdir
+        dir_path.mkdir(parents=True, exist_ok=True)
+        # Restringir permisos: solo el usuario propietario puede acceder
+        try:
+            _os_startup.chmod(str(dir_path), 0o700)
+        except OSError:
+            pass  # En Windows u otros SO puede no aplicar
 
     # Copiar defaults de agentes si no existen
     defaults_agents = DEFAULTS_DIR / "agents.json"
@@ -387,7 +409,8 @@ def _is_model_available(model: str) -> bool:
             m == model or m.startswith(model_base + ":")
             for m in available
         )
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Error verificando modelo: {e}")
         return False
 
 
@@ -501,8 +524,9 @@ def save_json(path: Path, data: Any) -> None:
         # os.replace es atómico en la mayoría de sistemas de archivos
         import os as _os
         _os.replace(str(tmp_path), str(path))
-    except Exception:
+    except Exception as e:
         # Fallback: escritura directa si el rename falla
+        logger.debug(f"Escritura atómica fallida para {path}, usando fallback: {e}")
         if tmp_path.exists():
             tmp_path.unlink()
         path.write_text(content, encoding="utf-8")
@@ -737,7 +761,7 @@ def call_ollama(model: str, system_prompt: str, user_message: str,
                         err_body = response.json()
                         err_msg = err_body.get("error", "").lower()
                     except Exception:
-                        err_msg = ""
+                        err_msg = ""  # Error parseando body, continuar con msg vacío
 
                     if "model" in err_msg and ("not found" in err_msg or "pull" in err_msg):
                         # El modelo no está descargado → auto-pull
@@ -1011,7 +1035,8 @@ def ollama_status():
         resp = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
         models = [m["name"] for m in resp.json().get("models", [])]
         return {"available": True, "models": models}
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Ollama no disponible para listar modelos: {e}")
         return {"available": False, "models": []}
 
 
@@ -1051,9 +1076,8 @@ def check_readiness():
         if resp.status_code == 200:
             ollama_ok = True
             models = [m["name"] for m in resp.json().get("models", [])]
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug(f"Error verificando estado de Ollama: {e}")
     if not ollama_ok:
         ready = False
         issues.append({
@@ -1116,8 +1140,8 @@ def get_hardware_performance(force: bool = False):
             cached = load_json(cache_file, {})
             if cached and "hardware" in cached and "models" in cached:
                 return cached
-        except Exception:
-            pass  # Cache corrupto, recalcular
+        except Exception as e:
+            logger.debug(f"Cache de hardware corrupto, recalculando: {e}")
     import platform as plat
     import subprocess
 
@@ -1180,9 +1204,8 @@ def get_hardware_performance(force: bool = False):
                 parts = out.split(",")
                 hw["gpu_name"] = parts[0].strip()
                 hw["vram_gb"] = round(int(parts[1].strip()) / 1024, 1) if len(parts) > 1 else 0
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug(f"Error detectando GPU: {e}")
     # --- Obtener modelos instalados ---
     models_perf = []
     try:
@@ -2877,9 +2900,8 @@ async def _generate_campaign_plan(brand_id: str, campaign_id: str,
                 }
                 camp_progress["updated_at"] = datetime.utcnow().isoformat()
                 save_json(camp_file, camp_progress)
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.warning(f"Error actualizando progreso de campaña: {e}")
             # Construir prompt del lote
             slots_desc = "\n".join([
                 f"  {i+1}. Canal: {s['channel']}, Fecha: {s['date']} 10:00, "
@@ -3620,10 +3642,9 @@ def _try_automatic1111(prompt: str, cfg: dict) -> Optional[str]:
         if health.status_code != 200:
             logger.debug(f"A1111 no disponible en {base_url} (status {health.status_code})")
             return None
-    except Exception:
-        logger.debug(f"A1111 no disponible en {base_url}")
+    except Exception as e:
+        logger.debug(f"A1111 no disponible en {base_url}: {e}")
         return None
-
     logger.info(f"Generando imagen con AUTOMATIC1111 en {base_url}...")
     payload = {
         "prompt": prompt,
@@ -3663,10 +3684,9 @@ def _try_comfyui(prompt: str, cfg: dict) -> Optional[str]:
         if health.status_code != 200:
             logger.debug(f"ComfyUI no disponible en {base_url}")
             return None
-    except Exception:
-        logger.debug(f"ComfyUI no disponible en {base_url}")
+    except Exception as e:
+        logger.debug(f"ComfyUI no disponible en {base_url}: {e}")
         return None
-
     logger.info(f"Generando imagen con ComfyUI en {base_url}...")
 
     # Workflow mínimo para txt2img
@@ -4174,24 +4194,22 @@ def get_image_providers_status():
     try:
         r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=3)
         ollama_available = r.status_code == 200
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug(f"Ollama no disponible para imágenes: {e}")
     # Verificar AUTOMATIC1111
     a1111_available = False
     try:
         r = requests.get(f"{img_cfg['a1111_url']}/sdapi/v1/sd-models", timeout=3)
         a1111_available = r.status_code == 200
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.debug(f"A1111 no disponible: {e}")
     # Verificar ComfyUI
     comfyui_available = False
     try:
         r = requests.get(f"{img_cfg['comfyui_url']}/system_stats", timeout=3)
         comfyui_available = r.status_code == 200
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"ComfyUI no disponible: {e}")
 
     # Determinar proveedor efectivo (en orden de prioridad)
     if provider == "auto":

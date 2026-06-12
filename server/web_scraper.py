@@ -51,6 +51,38 @@ _MIN_CONTENT_LENGTH = 300   # mínimo de chars para considerar que el scrape fue
 _JINA_BASE = "https://r.jina.ai/"
 
 
+def _validate_redirect_target(response: requests.Response) -> None:
+    """Valida que la URL final tras redirecciones no apunte a una IP privada/local (anti-SSRF)."""
+    import ipaddress
+    import socket
+    final_url = response.url
+    parsed = urlparse(final_url)
+    hostname = parsed.hostname
+    if not hostname:
+        return
+    blocked_hosts = {"localhost", "localhost.localdomain", "0.0.0.0", "[::]"}
+    if hostname.lower() in blocked_hosts:
+        raise ValueError(f"Redirección a host local bloqueada: {hostname}")
+    try:
+        resolved_ips = socket.getaddrinfo(hostname, None)
+        blocked_networks = [
+            ipaddress.ip_network("127.0.0.0/8"),
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("192.168.0.0/16"),
+            ipaddress.ip_network("169.254.0.0/16"),
+            ipaddress.ip_network("0.0.0.0/8"),
+            ipaddress.ip_network("::1/128"),
+        ]
+        for family, _, _, _, sockaddr in resolved_ips:
+            ip_obj = ipaddress.ip_address(sockaddr[0])
+            for network in blocked_networks:
+                if ip_obj in network:
+                    raise ValueError(f"Redirección a IP privada bloqueada: {sockaddr[0]}")
+    except socket.gaierror:
+        pass  # No se puede resolver, dejar pasar (el request fallará de todas formas)
+
+
 # ---------------------------------------------------------------------------
 # Resultado estructurado del scraper
 # ---------------------------------------------------------------------------
@@ -158,6 +190,7 @@ def _scrape_static(url: str, result: ScrapeResult) -> bool:
         from bs4 import BeautifulSoup
 
         resp = requests.get(url, headers=_DEFAULT_HEADERS, timeout=20, allow_redirects=True)
+        _validate_redirect_target(resp)  # Anti-SSRF: validar destino final
         resp.raise_for_status()
         resp.encoding = resp.apparent_encoding or "utf-8"
         html = resp.text
@@ -612,6 +645,7 @@ def _scrape_meta_enriched(url: str, result: ScrapeResult) -> bool:
         from bs4 import BeautifulSoup
 
         resp = requests.get(url, headers=_DEFAULT_HEADERS, timeout=20, allow_redirects=True)
+        _validate_redirect_target(resp)  # Anti-SSRF: validar destino final
         resp.encoding = resp.apparent_encoding or "utf-8"
         html = resp.text
         soup = BeautifulSoup(html, "html.parser")
